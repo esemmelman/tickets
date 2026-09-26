@@ -66,3 +66,23 @@
 .android-ticket-row.expanded{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr);gap:8px}
 .android-ticket-row.expanded>select,.android-ticket-row.expanded>input{grid-column:auto;min-height:44px;font-size:16px;padding:4px 2px}
 .android-ticket-row .close-row-fields{grid-column:1/-1;justify-self:end;min-height:36px}
+
+/* Compact Android workspace, with the composer first and filters on one row. */
+.android .workspace{padding-top:10px}
+.android .summary{display:none}
+.android .compact-composer{margin-bottom:10px}
+.android .composer-input-bar{padding:0 8px}
+.android .compact-composer .composer-input-bar>input{height:36px;min-height:36px;padding:6px 8px}
+.android .tabs button{font-size:11px;height:38px}
+.android .tabs button span{font-size:10px}
+.android .filterbar{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr);gap:6px;padding:8px 10px}
+.android .filterbar .search{grid-column:1/-1;width:auto;min-width:0}
+.android .filterbar>select,.android .sort{width:100%;min-width:0}
+.android .filterbar>select,.android .sort select{font-size:11px;min-height:34px;padding:4px 2px}
+.android .sort{padding-left:2px;gap:0}
+.android .sort>svg{display:none}
+.android .sort select{width:100%;min-width:0}
+.android .ticket-title>div{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:baseline;column-gap:4px;flex:1}
+.android .ticket-title .number{margin:0}
+.android .ticket-title-button{min-width:0}
+.android .ticket-title p{grid-column:2}
