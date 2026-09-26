@@ -130,8 +130,8 @@ function Workspace({ email }: { email: string }) {
   <main className="workspace"><div className="summary"><span><strong>{active.length}</strong> active</span><span><span className="dot amber"/><strong>{active.filter(t => t.status === 'In progress').length}</strong> in progress</span><span><span className="dot red"/><strong>{active.filter(overdue).length}</strong> overdue</span><span><span className="dot green"/><strong>{active.filter(t => t.status === 'Done').length}</strong> done</span></div>
     <section className={`composer compact-composer ${listening ? 'is-listening' : ''}`} aria-label="Add ticket">
       <form onSubmit={e => { e.preventDefault(); submit(); }}>
-        <input ref={titleInput} aria-label="Ticket title" aria-description="Tap to start or stop voice entry. Press Enter to save." aria-busy={saving} maxLength={500} value={draft.title} disabled={saving} onClick={toggleVoice} onChange={e => typeTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
-        <fieldset disabled={saving}><Fields draft={draft} change={next => { voice.current?.cancel(); setListening(false); draftRef.current = next; setDraft(next); }}/></fieldset>
+        <div className="composer-input-bar"><input ref={titleInput} aria-label="Ticket title" aria-description="Tap to start or stop voice entry. Press Enter to save." aria-busy={saving} maxLength={500} value={draft.title} disabled={saving} onClick={toggleVoice} onChange={e => typeTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
+        <fieldset disabled={saving}><Fields draft={draft} change={next => { voice.current?.cancel(); setListening(false); draftRef.current = next; setDraft(next); }}/></fieldset></div>
         <span className="voice-status" role="status">{listening ? 'Listening. Tap again to stop.' : saving ? 'Saving ticket.' : ''}</span>
       </form>
     </section>

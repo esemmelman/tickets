@@ -39,3 +39,20 @@
   .ticket-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);row-gap:7px}
   .ticket-row .inline-date{grid-column:1/-1}
 }
+
+/* One input bar: title on the left, draft controls starting at 41%. */
+.composer-input-bar{display:grid;grid-template-columns:minmax(0,41fr) minmax(0,59fr);align-items:center;background:#fff;border:1px solid #dce3df;border-radius:10px;padding:4px 8px 4px 0}
+.composer-input-bar:focus-within,.is-listening .composer-input-bar{border-color:#419a87;box-shadow:0 0 0 3px #17685d12}
+.compact-composer .composer-input-bar>input{border:0;background:transparent;box-shadow:none;min-height:46px}
+.compact-composer .fields{margin:0;gap:8px;grid-template-columns:1.2fr 1fr 1fr}
+.compact-composer .fields label{min-width:0;gap:0;font-size:10px;color:var(--muted)}
+.compact-composer .fields>label:first-child{grid-column:auto}
+.compact-composer .fields input,.compact-composer .fields select{min-height:32px;padding:4px 6px;font-size:14px;border:0;background:transparent;border-radius:4px;box-shadow:none}
+@media(max-width:600px){
+  .composer-input-bar{grid-template-columns:minmax(0,1fr);padding:4px 8px}
+  .composer-input-bar fieldset{border-top:1px solid var(--border);padding-top:6px}
+  .compact-composer .composer-input-bar>input{padding-left:8px}
+  .compact-composer .fields{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr);gap:3px}
+  .compact-composer .fields label{font-size:12px}
+  .compact-composer .fields input,.compact-composer .fields select{font-size:16px;min-height:40px;padding:4px 0}
+}
