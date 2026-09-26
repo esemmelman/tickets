@@ -83,7 +83,10 @@
 .android .sort>svg{display:none}
 .android .sort select{width:100%;min-width:0}
 .android .ticket-title>div{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:baseline;column-gap:0;flex:1}
-.android .ticket-title .number{margin:0;white-space:pre}
+.android .ticket-title .number{margin:0;white-space:pre;font-family:ui-monospace,monospace}
 .android .ticket-title .status-icon{display:none}
 .android .ticket-title-button{min-width:0}
 .android .ticket-title p{grid-column:2}
+
+.android .ticket-list-date{font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap}
+.android .ticket-list-date.overdue{color:#b26c61}
