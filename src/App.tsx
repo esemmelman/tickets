@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { Archive, ArrowDown, Check, ChevronRight, Circle, Clock3, FileText, LogOut, Mic, Plus, RefreshCw, Search, Square, Ticket as TicketIcon, X } from 'lucide-react';
-import { blankDraft, displayDate, errorMessage, localDate, passwordExpiry, supabase } from './lib';
-import { createTicket, loadTickets } from './api';
+import { Archive, ArrowDown, Check, Circle, Clock3, FileText, LogOut, RefreshCw, Search, Ticket as TicketIcon, X } from 'lucide-react';
+import { blankDraft, errorMessage, localDate, passwordExpiry, supabase } from './lib';
+import { createTicket, loadTickets, updateTicket } from './api';
 import { priorities, statuses } from './types';
 import type { Draft, Ticket } from './types';
 import { parseVoice } from './parseVoice';
@@ -59,45 +59,86 @@ function Workspace({ email }: { email: string }) {
   const [sort, setSort] = useState('newest');
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [draft, setDraft] = useState<Draft>(blankDraft);
-  const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [listening, setListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
+  const [updating, setUpdating] = useState<Set<number>>(new Set());
+  const updateLocks = useRef(new Set<number>());
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   const voice = useRef<VoiceCapture | null>(null);
   const requestId = useRef(crypto.randomUUID());
   const savingRef = useRef(false);
   const titleInput = useRef<HTMLInputElement>(null);
   const refresh = useCallback(async () => { setLoading(true); try { setTickets(await loadTickets()); setError(''); } catch (e) { setError(errorMessage(e)); } finally { setLoading(false); } }, []);
-  useEffect(() => { void refresh(); return () => voice.current?.cancel(); }, [refresh]);
+  useEffect(() => { void refresh(); return () => { voice.current?.cancel(); clearTimeout(idleTimer.current); }; }, [refresh]);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 6500); return () => clearTimeout(timer); }, [notice]);
   const save = async (value = draft) => {
     if (savingRef.current || !value.title.trim()) return;
+    clearTimeout(idleTimer.current);
     savingRef.current = true; setSaving(true); setError('');
-    try { const ticket = await createTicket(value, requestId.current); setTickets(items => [ticket, ...items.filter(t => t.id !== ticket.id)]); setDraft(blankDraft()); requestId.current = crypto.randomUUID(); setTranscript(''); setExpanded(false); setNotice(`Ticket #${ticket.id} saved`); }
-    catch (e) { setError(errorMessage(e)); setDraft(value); setExpanded(true); }
+    try { const ticket = await createTicket(value, requestId.current); setTickets(items => [ticket, ...items.filter(t => t.id !== ticket.id)]); setDraft(blankDraft()); requestId.current = crypto.randomUUID(); setNotice(`Ticket #${ticket.id} saved`); }
+    catch (e) { setError(errorMessage(e)); setDraft(value); }
     finally { savingRef.current = false; setSaving(false); }
   };
   const toggleVoice = () => {
+    clearTimeout(idleTimer.current);
     if (listening) { voice.current?.stop(false); return; }
-    if (!recognitionConstructor()) { setExpanded(true); titleInput.current?.focus(); setNotice('Voice is unavailable in this browser. Type your ticket below.'); return; }
-    setExpanded(true); setListening(true); setError('');
+    if (!recognitionConstructor()) { titleInput.current?.focus(); setNotice('Voice is unavailable in this browser. Type your ticket and press Enter.'); return; }
+    setListening(true); setError('');
     const starting = draft;
     voice.current = new VoiceCapture({
-      transcript: text => { setTranscript(text); setDraft({ ...parseVoice([starting.title, text].filter(Boolean).join(' ')), description: starting.description }); },
-      finish: (text, autoSave) => { setListening(false); if (text.trim()) { const parsed = { ...parseVoice([starting.title, text].filter(Boolean).join(' ')), description: starting.description }; setDraft(parsed); if (autoSave && parsed.title) void save(parsed); else if (autoSave) setError('Please add a ticket title.'); } },
+      hasContent: () => !!draftRef.current.title.trim(),
+      transcript: text => { setDraft({ ...parseVoice([starting.title, text].filter(Boolean).join(' ')), description: starting.description }); },
+      finish: (text, autoSave) => {
+        setListening(false);
+        const parsed = text.trim() ? { ...parseVoice([starting.title, text].filter(Boolean).join(' ')), description: starting.description } : draftRef.current;
+        setDraft(parsed);
+        if (autoSave && parsed.title.trim()) void save(parsed);
+      },
       error: message => { setError(message); setListening(false); },
     });
     void voice.current.start();
+  };
+  const submit = () => {
+    clearTimeout(idleTimer.current);
+    if (listening) voice.current?.stop(true);
+    else void save(draftRef.current);
+  };
+  const typeTitle = (title: string) => {
+    voice.current?.cancel(); setListening(false);
+    const next = { ...draftRef.current, title };
+    draftRef.current = next; setDraft(next);
+    clearTimeout(idleTimer.current);
+    if (title.trim()) idleTimer.current = setTimeout(() => void save(next), 3000);
+  };
+  const editInline = async (ticket: Ticket, changes: Partial<Draft>) => {
+    if (updateLocks.current.has(ticket.id)) return;
+    updateLocks.current.add(ticket.id); setUpdating(new Set(updateLocks.current)); setError('');
+    try {
+      const updated = await updateTicket(ticket.id, changes);
+      setTickets(items => items.map(t => t.id === updated.id ? updated : t));
+    } catch (e) { setError(errorMessage(e)); }
+    finally { updateLocks.current.delete(ticket.id); setUpdating(new Set(updateLocks.current)); }
   };
   const active = tickets.filter(t => !t.archived);
   const filtered = tickets.filter(t => t.archived === (view === 'archive') && (!status || t.status === status) && (!priority || t.priority === priority) && `${t.id} ${t.title} ${t.description} ${t.due_date || ''} ${t.priority || ''} ${t.status || ''}`.toLowerCase().includes(query.toLowerCase().replace(/^#/, ''))).sort((a, b) => sort === 'due' ? (a.due_date || '9999').localeCompare(b.due_date || '9999') || b.id - a.id : sort === 'priority' ? priorities.indexOf(b.priority!) - priorities.indexOf(a.priority!) || b.id - a.id : b.id - a.id);
   const overdue = (t: Ticket) => !!t.due_date && t.due_date < localDate() && !['Done', 'Cancelled'].includes(t.status || '');
   return <div className="app"><header className="topbar"><div className="brand"><span className="brand-icon"><TicketIcon size={23}/></span><h1>Tickets</h1><span className="version">v{__APP_VERSION__}</span></div><div className="account"><span>{email}</span><button className="icon-button" title="Sign out" aria-label="Sign out" onClick={async () => { const { error } = await supabase.auth.signOut({ scope: 'local' }); if (error) setError(error.message); }}><LogOut size={18}/></button></div></header>
   <main className="workspace"><div className="summary"><span><strong>{active.length}</strong> active</span><span><span className="dot amber"/><strong>{active.filter(t => t.status === 'In progress').length}</strong> in progress</span><span><span className="dot red"/><strong>{active.filter(overdue).length}</strong> overdue</span><span><span className="dot green"/><strong>{active.filter(t => t.status === 'Done').length}</strong> done</span></div>
-    <section className={`composer ${listening ? 'is-listening' : ''}`} aria-label="Add ticket"><button type="button" className="voice-box" onClick={toggleVoice} disabled={saving} aria-pressed={listening}><span className="add-icon">{listening ? <Square size={20}/> : <Plus size={22}/>}</span><span><strong>{listening ? 'Listening… tap to stop' : 'Add ticket'}</strong><small>{listening ? 'Saves after 3 seconds of silence' : 'Tap to speak'}</small></span><Mic size={21}/></button>
-    <form onSubmit={e => { e.preventDefault(); void save(); }}><div className="quick-input"><input ref={titleInput} aria-label="Ticket title" placeholder="Or type a ticket title…" maxLength={500} value={draft.title} disabled={listening || saving} onFocus={() => setExpanded(true)} onChange={e => setDraft({ ...draft, title: e.target.value })}/><button className="primary" disabled={!draft.title.trim() || saving || listening} type="submit"><Plus size={17}/>{saving ? 'Saving…' : 'Add'}</button></div>{expanded && <div className="composer-details"><Fields draft={draft} change={setDraft}/><label>Description<textarea rows={2} value={draft.description} disabled={listening || saving} placeholder="Optional" onChange={e => setDraft({ ...draft, description: e.target.value })}/></label>{transcript && <p className="transcript">Heard: {transcript}</p>}<div className="composer-foot"><small>Only the title is required.</small><button type="button" className="text-button" disabled={saving} onClick={() => { voice.current?.cancel(); setListening(false); setDraft(blankDraft()); setTranscript(''); setExpanded(false); requestId.current = crypto.randomUUID(); }}>Clear</button></div></div>}</form></section>
+    <section className={`composer compact-composer ${listening ? 'is-listening' : ''}`} aria-label="Add ticket">
+      <form onSubmit={e => { e.preventDefault(); submit(); }}>
+        <input ref={titleInput} aria-label="Ticket title" aria-description="Tap to start or stop voice entry. Press Enter to save." aria-busy={saving} maxLength={500} value={draft.title} disabled={saving} onClick={toggleVoice} onChange={e => typeTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
+        <span className="sr-only" role="status">{listening ? 'Listening. Tap again to stop.' : saving ? 'Saving ticket.' : ''}</span>
+      </form>
+    </section>
     {error && <div className="error-banner" role="alert"><span>{error}</span><button className="icon-button" aria-label="Dismiss error" onClick={() => setError('')}><X size={16}/></button></div>}
     <section className="ticket-panel" aria-label="Tickets"><div className="panel-toolbar"><nav className="tabs" aria-label="Ticket views"><button className={view === 'active' ? 'selected' : ''} onClick={() => setView('active')}><FileText size={16}/>Active <span>{active.length}</span></button><button className={view === 'archive' ? 'selected' : ''} onClick={() => setView('archive')}><Archive size={16}/>Archive <span>{tickets.length - active.length}</span></button></nav><button className="icon-button" aria-label="Refresh tickets" disabled={loading} onClick={() => void refresh()}><RefreshCw size={17} className={loading ? 'spin' : ''}/></button></div><div className="filterbar"><label className="search"><Search size={18}/><input aria-label="Find tickets" placeholder="Find by title, number, or description…" value={query} onChange={e => setQuery(e.target.value)}/>{query && <button className="icon-button" aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></button>}</label><select aria-label="Filter status" value={status} onChange={e => setStatus(e.target.value)}><option value="">All statuses</option>{statuses.map(s => <option key={s}>{s}</option>)}</select><select aria-label="Filter priority" value={priority} onChange={e => setPriority(e.target.value)}><option value="">All priorities</option>{priorities.map(p => <option key={p}>{p}</option>)}</select><label className="sort"><ArrowDown size={16}/><select aria-label="Sort tickets" value={sort} onChange={e => setSort(e.target.value)}><option value="newest">Newest</option><option value="due">Due date</option><option value="priority">Priority</option></select></label></div>
-    <div className="table-head"><span>Ticket</span><span>Status</span><span>Priority</span><span>Due date</span><span/></div><div className="ticket-list">{loading && !tickets.length ? <p className="empty">Loading tickets…</p> : filtered.length ? filtered.map(t => <button className="ticket-row" key={t.id} onClick={() => setSelected(t)}><div className="ticket-title"><span className={`status-icon ${t.status === 'Done' ? 'done' : ''}`}>{t.status === 'Done' ? <Check size={17}/> : <Circle size={17}/>}</span><div><span className="number">#{t.id}</span>{" "}<strong>{t.title}</strong>{t.description && <p>{t.description}</p>}</div></div><span className={`badge status-${(t.status || '').toLowerCase().replaceAll(' ', '-')}`}>{t.status || 'No status'}</span><span className={`priority priority-${t.priority?.toLowerCase()}`}><span className="dot"/>{t.priority || 'None'}</span><span className={`due ${overdue(t) ? 'overdue' : ''}`}>{displayDate(t.due_date)}</span><ChevronRight size={17} className="row-arrow"/></button>) : <div className="empty"><TicketIcon size={30}/><p>{query || status || priority ? 'No matching tickets' : view === 'archive' ? 'No archived tickets' : 'No tickets yet'}</p>{!query && view === 'active' && <button className="text-button" onClick={() => titleInput.current?.focus()}>Add a ticket above</button>}</div>}</div><div className="panel-footer">{filtered.length} {filtered.length === 1 ? 'ticket' : 'tickets'}<span>v{__APP_VERSION__}</span></div></section>
+    <div className="table-head"><span>Ticket</span><span>Status</span><span>Priority</span><span>Due date</span></div><div className="ticket-list">{loading && !tickets.length ? <p className="empty">Loading tickets…</p> : filtered.length ? filtered.map(t => <div className="ticket-row" key={t.id} aria-busy={updating.has(t.id)}>
+      <div className="ticket-title"><span className={`status-icon ${t.status === 'Done' ? 'done' : ''}`}>{t.status === 'Done' ? <Check size={17}/> : <Circle size={17}/>}</span><div><span className="number">#{t.id}</span>{" "}<button className="ticket-title-button" aria-label={`#${t.id} ${t.title}`} onClick={() => setSelected(t)}>{t.title}</button>{t.description && <p>{t.description}</p>}</div></div>
+      <select className={`inline-status status-${(t.status || '').toLowerCase().replaceAll(' ', '-')}`} aria-label={`Status for ticket ${t.id}`} value={t.status || ''} disabled={updating.has(t.id)} onChange={e => void editInline(t, { status: e.target.value as Draft['status'] || null })}><option value="">None</option>{statuses.map(s => <option key={s}>{s}</option>)}</select>
+      <select className="inline-priority" aria-label={`Priority for ticket ${t.id}`} value={t.priority || ''} disabled={updating.has(t.id)} onChange={e => void editInline(t, { priority: e.target.value as Draft['priority'] || null })}><option value="">None</option>{priorities.map(p => <option key={p}>{p}</option>)}</select>
+      <input type="date" className={`inline-date ${overdue(t) ? 'overdue' : ''}`} aria-label={`Due date for ticket ${t.id}`} value={t.due_date || ''} disabled={updating.has(t.id)} onChange={e => void editInline(t, { due_date: e.target.value || null })}/>
+    </div>) : <div className="empty"><TicketIcon size={30}/><p>{query || status || priority ? 'No matching tickets' : view === 'archive' ? 'No archived tickets' : 'No tickets yet'}</p>{!query && view === 'active' && <button className="text-button" onClick={() => titleInput.current?.focus()}>Add a ticket above</button>}</div>}</div><div className="panel-footer">{filtered.length} {filtered.length === 1 ? 'ticket' : 'tickets'}<span>v{__APP_VERSION__}</span></div></section>
   </main>{notice && <div className="toast" role="status"><Check size={17}/>{notice}</div>}{selected && <TicketDetail ticket={selected} close={() => setSelected(null)} changed={updated => { setTickets(items => items.map(t => t.id === updated.id ? updated : t)); setSelected(updated); }} deleted={id => { setTickets(items => items.filter(t => t.id !== id)); setSelected(null); setNotice(`Ticket #${id} deleted`); }} notify={setNotice}/>}</div>;
 }

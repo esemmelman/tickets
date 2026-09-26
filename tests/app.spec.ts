@@ -26,7 +26,7 @@ async function mockApp(page: Page, ageDays = 0) {
 test('CRUD, comments, find, archive, restore, delete', async ({ page }) => {
   await mockApp(page); await page.goto('./');
   await page.getByRole('textbox', { name: 'Ticket title', exact: true }).fill('Fix kitchen faucet');
-  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Ticket title', exact: true }).press('Enter');
   await expect(page.getByRole('button', { name: /#1001 Fix kitchen faucet/ })).toBeVisible();
   await page.getByRole('button', { name: /#1001 Fix kitchen faucet/ }).click();
   const dialog = page.getByRole('dialog');
@@ -63,9 +63,9 @@ test('90-day session expires even when token expiry is in the future', async ({ 
 });
 test('mobile layout and empty title validation', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 }); await mockApp(page); await page.goto('./');
-  await expect(page.getByRole('button', { name: 'Add', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Add', exact: true })).toHaveCount(0);
   await page.getByRole('textbox', { name: 'Ticket title', exact: true }).fill('   ');
-  await expect(page.getByRole('button', { name: 'Add', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Add', exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/mobile.png', fullPage: true });
 });
@@ -83,7 +83,7 @@ async function mockVoice(page: Page) {
 }
 test('voice saves once after 3 seconds of silence with parsed fields', async ({ page }) => {
   const state = await mockApp(page); await mockVoice(page); await page.goto('./');
-  await page.getByRole('button', { name: /Add ticket Tap to speak/ }).click();
+  await page.getByRole('textbox', { name: 'Ticket title', exact: true }).click();
   await page.waitForFunction(() => !!(window as any).recognition);
   await page.evaluate(() => (window as any).recognition.onresult({ results: [[{ transcript: 'Call plumber tomorrow high priority status waiting' }]] }));
   await expect(page.getByRole('button', { name: /#1001 Call plumber/ })).toBeVisible({ timeout: 6000 });
@@ -92,10 +92,10 @@ test('voice saves once after 3 seconds of silence with parsed fields', async ({ 
 });
 test('second voice tap preserves draft without saving', async ({ page }) => {
   const state = await mockApp(page); await mockVoice(page); await page.goto('./');
-  await page.getByRole('button', { name: /Add ticket Tap to speak/ }).click();
+  await page.getByRole('textbox', { name: 'Ticket title', exact: true }).click();
   await page.waitForFunction(() => !!(window as any).recognition);
   await page.evaluate(() => (window as any).recognition.onresult({ results: [[{ transcript: 'Order printer ink' }]] }));
-  await page.getByRole('button', { name: /Listening… tap to stop/ }).click();
+  await page.getByRole('textbox', { name: 'Ticket title', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Ticket title', exact: true })).toHaveValue('Order printer ink');
   await page.waitForTimeout(3300);
   expect(state.getTickets()).toHaveLength(0);
@@ -103,14 +103,14 @@ test('second voice tap preserves draft without saving', async ({ page }) => {
 test('failed save keeps the draft', async ({ page }) => {
   await mockApp(page); await page.route('**/rest/v1/personal_tickets*', async route => { if (route.request().method() === 'POST') await route.fulfill({ status: 503, json: { message: 'Temporarily unavailable' } }); else await route.fallback(); });
   await page.goto('./'); await page.getByRole('textbox', { name: 'Ticket title', exact: true }).fill('Keep my ticket');
-  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Ticket title', exact: true }).press('Enter');
   await expect(page.getByRole('alert')).toContainText('Temporarily unavailable');
   await expect(page.getByRole('textbox', { name: 'Ticket title', exact: true })).toHaveValue('Keep my ticket');
 });
 test('upload, download, and remove a ticket attachment', async ({ page }) => {
   await mockApp(page); await page.goto('./');
   await page.getByRole('textbox', { name: 'Ticket title', exact: true }).fill('Invoice');
-  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Ticket title', exact: true }).press('Enter');
   await page.getByRole('button', { name: /#1001 Invoice/ }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Upload files').setInputFiles({ name: 'receipt.txt', mimeType: 'text/plain', buffer: Buffer.from('Receipt contents') });
@@ -126,8 +126,8 @@ test('desktop and mobile display populated ticket details without overflow', asy
   await mockApp(page); await page.goto('./');
   for (const title of ['Schedule car service', 'Renew home insurance', 'Replace kitchen tap']) {
     await page.getByRole('textbox', { name: 'Ticket title', exact: true }).fill(title);
-    await page.getByRole('button', { name: 'Add', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Add', exact: true })).toBeDisabled();
+    await page.getByRole('textbox', { name: 'Ticket title', exact: true }).press('Enter');
+    await expect(page.getByRole('textbox', { name: 'Ticket title', exact: true })).toHaveValue('');
   }
   await page.screenshot({ path: 'test-results/desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -135,4 +135,52 @@ test('desktop and mobile display populated ticket details without overflow', asy
   const dialog = page.getByRole('dialog');
   expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/mobile-detail.png', fullPage: true });
+});
+test('blank input auto-saves typed content once and rejects whitespace', async ({ page }) => {
+  const state = await mockApp(page); await page.goto('./');
+  const input = page.getByRole('textbox', { name: 'Ticket title', exact: true });
+  await expect(input).not.toHaveAttribute('placeholder');
+  await input.fill('   '); await input.press('Enter');
+  await page.waitForTimeout(3200);
+  expect(state.getTickets()).toHaveLength(0);
+  await input.fill('Auto saved title');
+  await expect(page.getByRole('button', { name: /#1001 Auto saved title/ })).toBeVisible({ timeout: 6000 });
+  await input.press('Enter');
+  expect(state.getTickets()).toHaveLength(1);
+});
+test('Enter while recording saves once and cancels the silence timer', async ({ page }) => {
+  const state = await mockApp(page); await mockVoice(page); await page.goto('./');
+  const input = page.getByRole('textbox', { name: 'Ticket title', exact: true });
+  await input.click();
+  await page.waitForFunction(() => !!(window as any).recognition);
+  await page.evaluate(() => (window as any).recognition.onresult({ results: [[{ transcript: 'Order new keyboard' }]] }));
+  await input.press('Enter');
+  await expect(page.getByRole('button', { name: /#1001 Order new keyboard/ })).toBeVisible();
+  await page.waitForTimeout(3300);
+  expect(state.getTickets()).toHaveLength(1);
+});
+test('inline controls save without opening details; only the title opens them', async ({ page }) => {
+  const state = await mockApp(page); await page.goto('./');
+  const input = page.getByRole('textbox', { name: 'Ticket title', exact: true });
+  await input.fill('Inline editing'); await input.press('Enter');
+  await page.getByLabel('Status for ticket 1001').selectOption('Waiting');
+  await expect(page.getByLabel('Status for ticket 1001')).toHaveValue('Waiting');
+  await page.getByLabel('Priority for ticket 1001').selectOption('Urgent');
+  await expect(page.getByLabel('Priority for ticket 1001')).toHaveValue('Urgent');
+  await page.getByLabel('Due date for ticket 1001').fill('2026-12-15');
+  await expect(page.getByLabel('Due date for ticket 1001')).toHaveValue('2026-12-15');
+  await page.locator('.ticket-row .number').click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(state.getTickets()[0]).toMatchObject({ status: 'Waiting', priority: 'Urgent', due_date: '2026-12-15' });
+  await page.getByRole('button', { name: /#1001 Inline editing/ }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+});
+test('failed inline update keeps the saved value and reports an error', async ({ page }) => {
+  await mockApp(page); await page.goto('./');
+  const input = page.getByRole('textbox', { name: 'Ticket title', exact: true });
+  await input.fill('Retry update'); await input.press('Enter');
+  await page.route('**/rest/v1/personal_tickets*', async route => { if (route.request().method() === 'PATCH') await route.fulfill({ status: 503, json: { message: 'Update unavailable' } }); else await route.fallback(); });
+  await page.getByLabel('Status for ticket 1001').selectOption('Done');
+  await expect(page.getByRole('alert')).toContainText('Update unavailable');
+  await expect(page.getByLabel('Status for ticket 1001')).toHaveValue('Open');
 });
