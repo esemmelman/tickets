@@ -1,8 +1,8 @@
-# Tickets · v1.0.5
+# Tickets · v1.0.6
 
 Personal tickets at https://esemmelman.github.io/tickets/ with the existing **bnaimitzvah** Supabase backend. Sign in with your existing Supabase Auth email and password (not a database or dashboard password).
 
-- Opens in the Active view by default.
+- Opens in the Active view by default, excluding Done and Cancelled tickets. Choose All statuses or a specific status to see completed or cancelled tickets.
 - Add, edit, permanently delete, archive, restore, search, filter, and sort tickets. Compact rows default to due date ascending, then title ascending; undated tickets appear last.
 - IDs start at 1001 and increment by one. Deleted IDs are never reused; PostgreSQL can leave gaps after failed insertions.
 - Only title is required. Defaults: today's local date, Medium priority, Open status. Date, priority, and status can be cleared.

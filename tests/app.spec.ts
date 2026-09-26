@@ -275,3 +275,28 @@ test('microphone permission errors are visible and preserve the draft', async ({
   await expect(page.getByLabel('Ticket title', { exact: true })).toHaveValue('Keep spoken title');
   expect(state.getTickets()).toHaveLength(0);
 });
+
+
+test('default view excludes Done and Cancelled but explicit status filters can show them', async ({ page }) => {
+  await mockApp(page); await page.goto('./');
+  const input = page.getByLabel('Ticket title', { exact: true });
+  for (const title of ['Open task', 'Finished task', 'Cancelled task', 'No status task']) {
+    await input.fill(title); await input.press('Enter'); await expect(input).toHaveValue('');
+  }
+  await page.getByLabel('Status for ticket 1002').selectOption('Done');
+  await expect(page.getByLabel('Status for ticket 1002')).toHaveCount(0);
+  await page.getByLabel('Status for ticket 1003').selectOption('Cancelled');
+  await expect(page.getByLabel('Status for ticket 1003')).toHaveCount(0);
+  await page.getByLabel('Status for ticket 1004').selectOption('');
+  await expect(page.getByLabel('Status for ticket 1004')).toBeEnabled();
+  await page.reload();
+  await expect(page.locator('.ticket-title-button')).toHaveText(['No status task', 'Open task']);
+  await expect(page.getByRole('button', { name: 'Active 2', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Archive 0', exact: true })).toBeVisible();
+  await page.getByLabel('Filter status').selectOption('Done');
+  await expect(page.locator('.ticket-title-button')).toHaveText(['Finished task']);
+  await page.getByLabel('Filter status').selectOption('Cancelled');
+  await expect(page.locator('.ticket-title-button')).toHaveText(['Cancelled task']);
+  await page.getByLabel('Filter status').selectOption('all');
+  await expect(page.locator('.ticket-title-button')).toHaveCount(4);
+});
