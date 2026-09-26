@@ -14,11 +14,10 @@ export class VoiceCapture {
   private text = '';
   private previous = '';
   private lastSound = Date.now();
-  private started = Date.now();
   private stopped = false;
   private finishing = false;
   private save = false;
-  constructor(private callbacks: { hasContent?(): boolean; transcript(text: string): void; finish(text: string, save: boolean): void; error(message: string): void }) {}
+  constructor(private callbacks: { transcript(text: string): void; finish(text: string, save: boolean): void; error(message: string): void }) {}
   async start() {
     const Constructor = recognitionConstructor();
     if (!Constructor) { this.callbacks.error('Voice entry is unavailable in this browser. You can type a ticket below.'); return; }
@@ -32,13 +31,12 @@ export class VoiceCapture {
       analyser.fftSize = 1024;
       this.context.createMediaStreamSource(this.stream).connect(analyser);
       const data = new Float32Array(analyser.fftSize);
-      this.started = this.lastSound = Date.now();
+      this.lastSound = Date.now();
       this.interval = setInterval(() => {
         analyser.getFloatTimeDomainData(data);
         const rms = Math.sqrt(data.reduce((sum, v) => sum + v * v, 0) / data.length);
         if (rms > 0.018) this.lastSound = Date.now();
-        if ((this.text.trim() || this.callbacks.hasContent?.()) && Date.now() - this.lastSound >= 3000) this.stop(true);
-        else if (!(this.text.trim() || this.callbacks.hasContent?.()) && Date.now() - this.started > 20000) { this.callbacks.error('No speech detected. Tap the input to try again.'); this.stop(false); }
+        if (Date.now() - this.lastSound >= 3000) this.stop(true);
       }, 100);
       const recognition = new Constructor();
       this.recognition = recognition;
@@ -74,6 +72,7 @@ export class VoiceCapture {
     this.finishing = true;
     this.save = save;
     clearInterval(this.interval);
+    this.stream?.getTracks().forEach(track => track.stop());
     this.fallback = setTimeout(() => this.complete(), 1200);
     if (this.recognition) { try { this.recognition.stop(); } catch { this.complete(); } }
     else this.complete();

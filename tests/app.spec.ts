@@ -136,16 +136,18 @@ test('desktop and mobile display populated ticket details without overflow', asy
   expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/mobile-detail.png', fullPage: true });
 });
-test('blank input auto-saves typed content once and rejects whitespace', async ({ page }) => {
+test('typed content waits for Enter and rejects whitespace', async ({ page }) => {
   const state = await mockApp(page); await page.goto('./');
   const input = page.getByRole('textbox', { name: 'Ticket title', exact: true });
   await expect(input).not.toHaveAttribute('placeholder');
   await input.fill('   '); await input.press('Enter');
   await page.waitForTimeout(3200);
   expect(state.getTickets()).toHaveLength(0);
-  await input.fill('Auto saved title');
-  await expect(page.getByRole('button', { name: /#1001 Auto saved title/ })).toBeVisible({ timeout: 6000 });
+  await input.fill('Typed title');
+  await page.waitForTimeout(3300);
+  expect(state.getTickets()).toHaveLength(0);
   await input.press('Enter');
+  await expect(page.getByRole('button', { name: /#1001 Typed title/ })).toBeVisible();
   expect(state.getTickets()).toHaveLength(1);
 });
 test('Enter while recording saves once and cancels the silence timer', async ({ page }) => {
@@ -183,4 +185,44 @@ test('failed inline update keeps the saved value and reports an error', async ({
   await page.getByLabel('Status for ticket 1001').selectOption('Done');
   await expect(page.getByRole('alert')).toContainText('Update unavailable');
   await expect(page.getByLabel('Status for ticket 1001')).toHaveValue('Open');
+});
+test('empty microphone stops after three seconds without a banner or ticket', async ({ page }) => {
+  const state = await mockApp(page); await mockVoice(page); await page.goto('./');
+  await page.getByRole('textbox', { name: 'Ticket title', exact: true }).click();
+  await expect(page.locator('.composer')).toHaveClass(/is-listening/);
+  await expect(page.locator('.composer')).not.toHaveClass(/is-listening/, { timeout: 4500 });
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.locator('.toast')).toHaveCount(0);
+  expect(state.getTickets()).toHaveLength(0);
+});
+test('typing during recording cancels auto-save and keeps cursor clicks in typing mode', async ({ page }) => {
+  const state = await mockApp(page); await mockVoice(page); await page.goto('./');
+  const input = page.getByRole('textbox', { name: 'Ticket title', exact: true });
+  await input.click();
+  await page.waitForFunction(() => !!(window as any).recognition);
+  await page.evaluate(() => (window as any).recognition.onresult({ results: [[{ transcript: 'Spoken draft' }]] }));
+  await input.fill('Edited draft');
+  await input.click();
+  await expect(page.locator('.composer')).not.toHaveClass(/is-listening/);
+  await page.waitForTimeout(3500);
+  expect(state.getTickets()).toHaveLength(0);
+  await input.press('Enter');
+  await expect(page.getByRole('button', { name: /#1001 Edited draft/ })).toBeVisible();
+});
+test('compact rows sort by date then title ascending with undated tickets last', async ({ page }) => {
+  await mockApp(page); await page.goto('./');
+  const input = page.getByRole('textbox', { name: 'Ticket title', exact: true });
+  for (const title of ['Zulu', 'Alpha', 'Earlier', 'Undated']) {
+    await input.fill(title); await input.press('Enter'); await expect(input).toHaveValue('');
+  }
+  await page.getByLabel('Due date for ticket 1001').fill('2026-12-15');
+  await expect(page.getByLabel('Due date for ticket 1001')).toBeEnabled();
+  await page.getByLabel('Due date for ticket 1002').fill('2026-12-15');
+  await expect(page.getByLabel('Due date for ticket 1002')).toBeEnabled();
+  await page.getByLabel('Due date for ticket 1003').fill('2026-12-14');
+  await expect(page.getByLabel('Due date for ticket 1003')).toBeEnabled();
+  await page.getByLabel('Due date for ticket 1004').fill('');
+  await expect(page.locator('.ticket-title-button')).toHaveText(['Earlier', 'Alpha', 'Zulu', 'Undated']);
+  const row = await page.locator('.ticket-row').first().boundingBox();
+  expect(row!.height).toBeLessThanOrEqual(48);
 });
