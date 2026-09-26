@@ -1,5 +1,5 @@
 type ResultEvent = { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> };
-type Recognition = { continuous: boolean; interimResults: boolean; lang: string; onresult: ((event: ResultEvent) => void) | null; onerror: ((event: { error: string }) => void) | null; onend: (() => void) | null; start(): void; stop(): void; abort(): void };
+type Recognition = { continuous: boolean; interimResults: boolean; lang: string; onstart?: (() => void) | null; onspeechstart?: (() => void) | null; onspeechend?: (() => void) | null; onresult: ((event: ResultEvent) => void) | null; onerror: ((event: { error: string }) => void) | null; onend: (() => void) | null; start(): void; stop(): void; abort(): void };
 type RecognitionConstructor = new () => Recognition;
 export const recognitionConstructor = () => {
   const w = window as unknown as { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor };
@@ -21,7 +21,9 @@ export class VoiceCapture {
   async start() {
     const Constructor = recognitionConstructor();
     if (!Constructor) { this.callbacks.error('Voice entry is unavailable in this browser. You can type a ticket below.'); return; }
+    const android = /Android/i.test(navigator.userAgent);
     try {
+      if (!android) {
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       if (this.stopped) { this.release(); return; }
       this.context = new AudioContext();
@@ -38,9 +40,17 @@ export class VoiceCapture {
         if (rms > 0.018) this.lastSound = Date.now();
         if (Date.now() - this.lastSound >= 3000) this.stop(true);
       }, 100);
+      }
       const recognition = new Constructor();
       this.recognition = recognition;
-      recognition.continuous = true;
+      recognition.continuous = !android;
+      if (android) {
+        // Let the recognition service own the microphone on Android.
+        const silence = () => { clearTimeout(this.fallback); this.fallback = setTimeout(() => this.stop(true), 3000); };
+        recognition.onstart = () => { this.lastSound = Date.now(); silence(); };
+        recognition.onspeechstart = () => clearTimeout(this.fallback);
+        recognition.onspeechend = silence;
+      }
       recognition.interimResults = true;
       recognition.lang = 'en-US';
       recognition.onresult = event => {
@@ -48,17 +58,23 @@ export class VoiceCapture {
         this.text = [this.previous, current].filter(Boolean).join(' ');
         this.lastSound = Date.now();
         this.callbacks.transcript(this.text);
+        if (android) { clearTimeout(this.fallback); this.fallback = setTimeout(() => this.stop(true), 3000); }
       };
       recognition.onerror = event => {
         if (this.stopped || this.finishing) return;
-        if (event.error === 'no-speech') return;
+        if (event.error === 'no-speech') { this.stop(true); return; }
         this.callbacks.error(event.error === 'not-allowed' ? 'Microphone access was denied. Allow it in your browser settings or type below.' : `Voice entry stopped (${event.error}). Your draft has been kept.`);
         this.stop(false);
       };
       recognition.onend = () => {
         if (this.stopped) return;
         if (this.finishing) { this.complete(); return; }
-        // Android may end recognition before our silence timer; preserve text across restarts.
+        if (android) {
+          clearTimeout(this.fallback);
+          this.fallback = setTimeout(() => this.stop(true), Math.max(0, 3000 - (Date.now() - this.lastSound)));
+          return;
+        }
+        // Browsers may end recognition before our silence timer; preserve text across restarts.
         this.previous = this.text;
         try { recognition.start(); } catch { this.callbacks.error('Voice entry stopped. Your draft has been kept.'); this.stop(false); }
       };
@@ -86,7 +102,7 @@ export class VoiceCapture {
   cancel() { this.stopped = true; this.release(); }
   private release() {
     clearInterval(this.interval); clearTimeout(this.fallback);
-    if (this.recognition) { this.recognition.onend = null; this.recognition.onresult = null; this.recognition.onerror = null; this.recognition.abort(); }
+    if (this.recognition) { this.recognition.onstart = null; this.recognition.onspeechstart = null; this.recognition.onspeechend = null; this.recognition.onend = null; this.recognition.onresult = null; this.recognition.onerror = null; this.recognition.abort(); }
     this.stream?.getTracks().forEach(track => track.stop());
     void this.context?.close().catch(() => {});
   }

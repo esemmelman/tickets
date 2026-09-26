@@ -77,7 +77,7 @@ async function mockVoice(page: Page) {
       start() {} stop() { this.onend?.(); } abort() {}
     }
     (window as any).SpeechRecognition = MockRecognition;
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => ({ getTracks: () => [{ stop() {} }] }) });
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => ({ getTracks: () => [{ stop() {} }] }) });
     (window as any).AudioContext = class { async resume() {} async close() {} createAnalyser() { return { fftSize: 1024, getFloatTimeDomainData(data: Float32Array) { data.fill(0); } }; } createMediaStreamSource() { return { connect() {} }; } };
   });
 }
@@ -225,4 +225,53 @@ test('compact rows sort by date then title ascending with undated tickets last',
   await expect(page.locator('.ticket-title-button')).toHaveText(['Earlier', 'Alpha', 'Zulu', 'Undated']);
   const row = await page.locator('.ticket-row').first().boundingBox();
   expect(row!.height).toBeLessThanOrEqual(48);
+});
+
+
+test('composer metadata is saved with a typed title', async ({ page }) => {
+  const state = await mockApp(page); await page.goto('./');
+  const composer = page.getByRole('region', { name: 'Add ticket', exact: true });
+  await composer.getByRole('combobox', { name: 'Status', exact: true }).selectOption('Waiting');
+  await composer.getByRole('combobox', { name: 'Priority', exact: true }).selectOption('Urgent');
+  await composer.getByLabel('Due date', { exact: true }).fill('2026-12-15');
+  await composer.getByLabel('Ticket title', { exact: true }).fill('Selected fields');
+  await composer.getByLabel('Ticket title', { exact: true }).press('Enter');
+  await expect(page.getByRole('button', { name: /#1001 Selected fields/ })).toBeVisible();
+  expect(state.getTickets()[0]).toMatchObject({ status: 'Waiting', priority: 'Urgent', due_date: '2026-12-15' });
+});
+
+test('Android voice uses recognition without a second microphone and retains selected metadata', async ({ page }) => {
+  const state = await mockApp(page); await mockVoice(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'userAgent', { value: 'Android Chrome' });
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => { throw new Error('Second microphone must not be opened'); } });
+  });
+  await page.goto('./');
+  const composer = page.getByRole('region', { name: 'Add ticket', exact: true });
+  await composer.getByRole('combobox', { name: 'Priority', exact: true }).selectOption('Urgent');
+  await composer.getByLabel('Ticket title', { exact: true }).click();
+  await page.evaluate(() => {
+    const recognition = (window as any).recognition;
+    recognition.onstart();
+    recognition.onresult({ results: [[{ transcript: 'Call mechanic' }]] });
+    recognition.onend();
+  });
+  await expect(page.getByRole('button', { name: /#1001 Call mechanic/ })).toBeVisible({ timeout: 6000 });
+  expect(state.getTickets()).toHaveLength(1);
+  expect(state.getTickets()[0].priority).toBe('Urgent');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('microphone permission errors are visible and preserve the draft', async ({ page }) => {
+  const state = await mockApp(page); await mockVoice(page); await page.goto('./');
+  await page.getByLabel('Ticket title', { exact: true }).click();
+  await page.waitForFunction(() => !!(window as any).recognition);
+  await page.evaluate(() => {
+    const recognition = (window as any).recognition;
+    recognition.onresult({ results: [[{ transcript: 'Keep spoken title' }]] });
+    recognition.onerror({ error: 'not-allowed' });
+  });
+  await expect(page.getByRole('alert')).toContainText('Microphone access was denied');
+  await expect(page.getByLabel('Ticket title', { exact: true })).toHaveValue('Keep spoken title');
+  expect(state.getTickets()).toHaveLength(0);
 });

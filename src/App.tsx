@@ -85,19 +85,19 @@ function Workspace({ email }: { email: string }) {
 
     if (listening) { voice.current?.stop(false); return; }
     if (typedDraft.current && draftRef.current.title.trim()) return;
-    if (!recognitionConstructor()) return;
+    if (!recognitionConstructor()) { setError('Voice entry is unavailable in this browser. Open Tickets in Chrome or type your ticket.'); return; }
     typedDraft.current = false;
     setListening(true); setError('');
     const starting = draft;
     voice.current = new VoiceCapture({
-      transcript: text => { setDraft({ ...parseVoice([starting.title, text].filter(Boolean).join(' ')), description: starting.description }); },
+      transcript: text => { setDraft({ ...parseVoice([starting.title, text].filter(Boolean).join(' '), new Date(), starting), description: starting.description }); },
       finish: (text, autoSave) => {
         setListening(false);
-        const parsed = text.trim() ? { ...parseVoice([starting.title, text].filter(Boolean).join(' ')), description: starting.description } : draftRef.current;
+        const parsed = text.trim() ? { ...parseVoice([starting.title, text].filter(Boolean).join(' '), new Date(), starting), description: starting.description } : draftRef.current;
         setDraft(parsed);
         if (autoSave && !typedDraft.current && parsed.title.trim()) void save(parsed);
       },
-      error: () => { setListening(false); },
+      error: message => { setListening(false); setError(message); },
     });
     void voice.current.start();
   };
@@ -131,7 +131,8 @@ function Workspace({ email }: { email: string }) {
     <section className={`composer compact-composer ${listening ? 'is-listening' : ''}`} aria-label="Add ticket">
       <form onSubmit={e => { e.preventDefault(); submit(); }}>
         <input ref={titleInput} aria-label="Ticket title" aria-description="Tap to start or stop voice entry. Press Enter to save." aria-busy={saving} maxLength={500} value={draft.title} disabled={saving} onClick={toggleVoice} onChange={e => typeTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
-        <span className="sr-only" role="status">{listening ? 'Listening. Tap again to stop.' : saving ? 'Saving ticket.' : ''}</span>
+        <fieldset disabled={saving}><Fields draft={draft} change={next => { voice.current?.cancel(); setListening(false); draftRef.current = next; setDraft(next); }}/></fieldset>
+        <span className="voice-status" role="status">{listening ? 'Listening. Tap again to stop.' : saving ? 'Saving ticket.' : ''}</span>
       </form>
     </section>
     {error && <div className="error-banner" role="alert"><span>{error}</span><button className="icon-button" aria-label="Dismiss error" onClick={() => setError('')}><X size={16}/></button></div>}

@@ -22,3 +22,20 @@
 @media(max-width:800px){.ticket-row{row-gap:4px;padding:7px 12px}.ticket-title{margin-bottom:0}}
 @media(max-width:520px){.ticket-row{column-gap:6px}.ticket-row select,.ticket-row input{min-height:32px;padding:4px}.filterbar{padding:10px 12px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.compact-composer .fields{margin:10px 0 0}
+.compact-composer .fields input,.compact-composer .fields select{min-height:42px;padding:8px;font-size:14px;border-radius:7px}
+.voice-status{display:block;margin-top:6px;color:var(--green);font-size:14px}
+.voice-status:empty{display:none}
+@media(max-width:600px){
+  :root{font-size:16px}
+  .ticket-title-button{font-size:16px;line-height:1.4}
+  .ticket-title p,.number,.summary,.tabs button,.panel-footer,label{font-size:13px}
+  .search input,.filterbar>select,.sort select{font-size:14px}
+  .ticket-row select,.ticket-row input{font-size:14px;min-height:40px}
+  .compact-composer .fields,.detail-body .fields{grid-template-columns:1fr 1fr}
+  .fields>label:first-child{grid-column:1/-1}
+  .compact-composer .fields input,.compact-composer .fields select,.detail-body .fields input,.detail-body .fields select{font-size:16px}
+  .ticket-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);row-gap:7px}
+  .ticket-row .inline-date{grid-column:1/-1}
+}
