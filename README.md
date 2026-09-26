@@ -1,4 +1,4 @@
-# Tickets · v1.0.6
+# Tickets · v1.0.7
 
 Personal tickets at https://esemmelman.github.io/tickets/ with the existing **bnaimitzvah** Supabase backend. Sign in with your existing Supabase Auth email and password (not a database or dashboard password).
 
@@ -7,8 +7,8 @@ Personal tickets at https://esemmelman.github.io/tickets/ with the existing **bn
 - IDs start at 1001 and increment by one. Deleted IDs are never reused; PostgreSQL can leave gaps after failed insertions.
 - Only title is required. Defaults: today's local date, Medium priority, Open status. Date, priority, and status can be cleared.
 - Multiple editable comments and private file attachments (25 MB each).
-- Choose due date, priority, and status inside the input bar before saving. Mobile text and controls use larger fonts.
-- Tap the blank input to dictate in Android Chrome, allowing microphone access. Three seconds of silence stops recording silently and saves only when a title was captured. Tap again to stop and keep the draft without saving. Type in the same input to use the keyboard; typing cancels recording and auto-save for that draft; press Enter to save. Enter saves immediately, including while recording. Only clicking a saved ticket title opens its details. Status and priority dropdowns and a date picker save changes directly in the list.
+- On Android, the input bar contains only the ticket title. Tap a saved ticket to open its full details; long press it to reveal status, priority, and due date controls that save directly. Use Hide fields to collapse them. New tickets keep the usual defaults. On desktop, metadata remains editable in the input bar and ticket rows.
+- Tap the blank input to dictate in Android Chrome, allowing microphone access. Three seconds of silence stops recording silently and saves only when a title was captured. Tap again to stop and keep the draft without saving. Type in the same input to use the keyboard; typing cancels recording and auto-save for that draft; press Enter to save. Enter saves immediately, including while recording. On desktop, clicking a saved ticket title opens its details. Status and priority dropdowns and a date picker save changes directly in the list.
 - Example: “Call the plumber due tomorrow high priority status in progress.” Date extraction uses chrono-node; metadata uses explicit priority/status phrases to avoid removing ordinary title words. This is deterministic natural-language parsing, not a generative AI service.
 - Voice uses browser speech recognition, with Web Audio silence detection on desktop and recognition event timers on Android. Android lets the recognition service own the microphone; microphone errors are shown above the list. Browser recognition may send audio to its provider and needs an internet connection. Test the microphone on your physical Android device; automated tests simulate browser audio events.
 - Password sessions persist on the device and ticket/file RLS rejects password authentication older than 90 days. Changing passwords, signing out, clearing browser storage, or existing project session settings can require earlier sign-in. Other project applications and their auth configuration are unchanged.

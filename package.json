@@ -1,6 +1,6 @@
 {
   "name": "tickets",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Personal tickets with Supabase and voice entry",
   "main": "index.js",
   "scripts": {

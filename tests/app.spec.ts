@@ -240,7 +240,7 @@ test('composer metadata is saved with a typed title', async ({ page }) => {
   expect(state.getTickets()[0]).toMatchObject({ status: 'Waiting', priority: 'Urgent', due_date: '2026-12-15' });
 });
 
-test('Android voice uses recognition without a second microphone and retains selected metadata', async ({ page }) => {
+test('Android voice uses recognition without a second microphone and keeps default metadata', async ({ page }) => {
   const state = await mockApp(page); await mockVoice(page);
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'userAgent', { value: 'Android Chrome' });
@@ -248,7 +248,7 @@ test('Android voice uses recognition without a second microphone and retains sel
   });
   await page.goto('./');
   const composer = page.getByRole('region', { name: 'Add ticket', exact: true });
-  await composer.getByRole('combobox', { name: 'Priority', exact: true }).selectOption('Urgent');
+  await expect(composer.getByRole('combobox')).toHaveCount(0);
   await composer.getByLabel('Ticket title', { exact: true }).click();
   await page.evaluate(() => {
     const recognition = (window as any).recognition;
@@ -258,7 +258,7 @@ test('Android voice uses recognition without a second microphone and retains sel
   });
   await expect(page.getByRole('button', { name: /#1001 Call mechanic/ })).toBeVisible({ timeout: 6000 });
   expect(state.getTickets()).toHaveLength(1);
-  expect(state.getTickets()[0].priority).toBe('Urgent');
+  expect(state.getTickets()[0].priority).toBe('Medium');
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
@@ -300,3 +300,39 @@ test('default view excludes Done and Cancelled but explicit status filters can s
   await page.getByLabel('Filter status').selectOption('all');
   await expect(page.locator('.ticket-title-button')).toHaveCount(4);
 });
+
+ test('Android long press reveals editable fields, tap opens details, and scrolling cancels the hold', async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 851 });
+  await page.addInitScript(() => Object.defineProperty(navigator, 'userAgent', { value: 'Android Chrome' }));
+  const state = await mockApp(page); await page.goto('./');
+  const composer = page.getByRole('region', { name: 'Add ticket', exact: true });
+  await expect(composer.getByLabel('Due date', { exact: true })).toHaveCount(0);
+  await expect(composer.getByRole('combobox')).toHaveCount(0);
+  const input = composer.getByLabel('Ticket title', { exact: true });
+  await input.fill('Android task'); await input.press('Enter');
+  const row = page.locator('.ticket-row');
+  await expect(row).toBeVisible();
+  const status = page.getByLabel('Status for ticket 1001');
+  await expect(status).toBeHidden();
+  const box = (await row.boundingBox())!;
+  await page.mouse.move(box.x + 12, box.y + 15);
+  await page.mouse.down(); await page.waitForTimeout(600); await page.mouse.up();
+  await expect(status).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await status.selectOption('Waiting');
+  await expect(status).toBeEnabled();
+  await page.getByLabel('Priority for ticket 1001').selectOption('Urgent');
+  await expect(page.getByLabel('Priority for ticket 1001')).toBeEnabled();
+  await page.getByLabel('Due date for ticket 1001').fill('2026-12-15');
+  await expect(page.getByLabel('Due date for ticket 1001')).toBeEnabled();
+  expect(state.getTickets()[0]).toMatchObject({ status: 'Waiting', priority: 'Urgent', due_date: '2026-12-15' });
+  await page.getByRole('button', { name: 'Hide fields' }).click();
+  await expect(status).toBeHidden();
+  await row.dispatchEvent('pointerdown', { isPrimary: true, button: 0, clientX: 25, clientY: 25 });
+  await row.dispatchEvent('pointermove', { clientX: 25, clientY: 65 });
+  await row.dispatchEvent('pointercancel');
+  await page.waitForTimeout(600);
+  await expect(status).toBeHidden();
+  await row.locator('.number').click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+ });
