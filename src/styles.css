@@ -82,7 +82,8 @@
 .android .sort{padding-left:2px;gap:0}
 .android .sort>svg{display:none}
 .android .sort select{width:100%;min-width:0}
-.android .ticket-title>div{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:baseline;column-gap:4px;flex:1}
-.android .ticket-title .number{margin:0}
+.android .ticket-title>div{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:baseline;column-gap:0;flex:1}
+.android .ticket-title .number{margin:0;white-space:pre}
+.android .ticket-title .status-icon{display:none}
 .android .ticket-title-button{min-width:0}
 .android .ticket-title p{grid-column:2}

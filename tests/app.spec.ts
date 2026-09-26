@@ -336,3 +336,44 @@ test('default view excludes Done and Cancelled but explicit status filters can s
   await row.locator('.number').click();
   await expect(page.getByRole('dialog')).toBeVisible();
  });
+
+
+test('Android search is revealed by holding the composer and Archive is selected through status', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.addInitScript(() => Object.defineProperty(navigator, 'userAgent', { value: 'Android Chrome' }));
+  await mockApp(page); await mockVoice(page); await page.goto('./');
+  const input = page.getByLabel('Ticket title', { exact: true });
+  await expect(page.getByLabel('Find tickets')).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Ticket views' })).toHaveCount(0);
+  await input.fill('Archived task'); await input.press('Enter');
+  const title = page.getByRole('button', { name: '#1001 Archived task' });
+  await expect(title).toBeVisible();
+  expect(await page.locator('.ticket-row .number').textContent()).toBe('#1001  ');
+  await expect(page.locator('.ticket-row .status-icon')).toBeHidden();
+  await title.click();
+  await page.getByRole('button', { name: 'Archive', exact: true }).click();
+  await page.getByRole('button', { name: 'Close ticket' }).click();
+  await expect(title).toHaveCount(0);
+  await page.getByLabel('Filter status').selectOption('archive');
+  await expect(title).toBeVisible();
+  const box = (await input.boundingBox())!;
+  await page.mouse.move(box.x + 20, box.y + 15);
+  await page.mouse.down(); await page.waitForTimeout(600); await page.mouse.up();
+  const search = page.getByLabel('Find tickets');
+  await expect(search).toBeVisible();
+  await expect(search).toBeFocused();
+  await expect(page.locator('.composer')).not.toHaveClass(/is-listening/);
+  await search.fill('absent'); await expect(title).toHaveCount(0);
+  await page.getByRole('button', { name: 'Hide search' }).click();
+  await expect(search).toHaveCount(0); await expect(title).toBeVisible();
+  await page.getByLabel('Filter status').selectOption('');
+  await expect(title).toHaveCount(0);
+  await page.getByLabel('Filter status').selectOption('archive');
+  await title.click();
+  await page.getByRole('button', { name: 'Restore', exact: true }).click();
+  await page.getByRole('button', { name: 'Close ticket' }).click();
+  await page.getByLabel('Filter status').selectOption('');
+  await expect(title).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/android-compact.png', fullPage: true });
+});
