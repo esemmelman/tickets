@@ -90,3 +90,6 @@
 
 .android .ticket-list-date{font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap}
 .android .ticket-list-date.overdue{color:#b26c61}
+
+.ticket-row.due-today{background:#fff0f0}
+.ticket-row.due-today:hover{background:#ffe6e6}
