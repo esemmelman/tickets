@@ -1,11 +1,11 @@
-# Tickets · v1.0.15
+# Tickets · v1.0.16
 
 Personal tickets at https://esemmelman.github.io/tickets/ with the existing **bnaimitzvah** Supabase backend. Sign in with your existing Supabase Auth email and password (not a database or dashboard password).
 
 - Opens in the Active view by default, excluding Done and Cancelled tickets. Choose All statuses or a specific status to see completed or cancelled tickets.
 - Add, edit, permanently delete, archive, restore, search, filter, and sort tickets. Compact rows default to due date ascending, then title ascending; undated tickets appear last.
 - IDs start at 1001 and increment by one. Deleted IDs are never reused; PostgreSQL can leave gaps after failed insertions.
-- Press D after a ticket’s date to mark it Done directly from the list. Android titles wrap naturally, with the date and D kept together and ticket numbers aligned to the first line.
+- Press lowercase d one space after a ticket’s date to mark it Done directly from the list. Android titles wrap naturally, with the date and d kept together and ticket numbers aligned to the first line.
 - Tickets due today use a medium red row background, based on the device's local date.
 - Only title is required. Defaults: today's local date, Medium priority, Open status. Date, priority, and status can be cleared.
 - Multiple editable comments and private file attachments (25 MB each).
