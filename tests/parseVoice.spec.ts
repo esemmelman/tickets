@@ -13,3 +13,8 @@ test('recognizes absolute dates and alternate status words', () => {
 test('empty metadata-only utterance does not invent a title', () => {
   expect(parseVoice('due tomorrow high priority status open', today).title).toBe('');
 });
+
+test('voice uses Aubree for the recognized name Aubrey', () => {
+  expect(parseVoice("call aubrey about Aubrey's appointment", today).title).toBe("Call Aubree about Aubree's appointment");
+  expect(parseVoice('Call Aubreys office', today).title).toBe('Call Aubreys office');
+});

@@ -105,3 +105,7 @@
 @media(max-width:800px){.ticket-date-action{grid-column:3}}
 @media(max-width:600px){.ticket-date-action{grid-column:1/-1}}
 .android-ticket-row.expanded>.ticket-date-action{grid-column:auto}
+
+.android .ticket-date-done{white-space:nowrap}
+.android .ticket-title .number{align-self:start;line-height:23.8px}
+.android .ticket-title-button:focus-visible{outline:3px solid #73b8a7;outline-offset:3px}

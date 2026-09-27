@@ -25,6 +25,7 @@ export function parseVoice(input: string, reference = new Date(), defaults?: Dra
     title = before + title.slice(match.index + match.text.length);
   }
   title = title.replace(/\s+/g, ' ').replace(/^[\s,.;:-]+|[\s,.;:-]+$/g, '').trim();
+  title = title.replace(/\bAubrey\b/gi, 'Aubree');
   title = title.replace(/\p{L}/u, letter => letter.toLocaleUpperCase());
   return { title, due_date, priority, status, description: '' };
 }

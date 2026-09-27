@@ -397,3 +397,30 @@ for (const android of [false, true]) {
     await expect(page.getByRole('button', { name: 'Mark ticket 1001 Done', exact: true })).toBeDisabled();
   });
 }
+
+test('Android titles flow across lines and keep the date with D', async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 851 });
+  await page.addInitScript(() => Object.defineProperty(navigator, 'userAgent', { value: 'Android Chrome' }));
+  await mockApp(page); await page.goto('./');
+  const input = page.getByLabel('Ticket title', { exact: true });
+  for (const title of ['Fix the kitchen clock', 'Do swim reimbursement', 'Make appt for Aubree at UCI for 3 to 4 mos. with Dr. Cro']) {
+    await input.fill(title); await input.press('Enter');
+    await expect(page.locator('.ticket-title-button').filter({ hasText: title })).toBeVisible();
+  }
+  await page.evaluate(() => document.fonts.ready);
+  const clock = page.getByRole('button', { name: '#1001 Fix the kitchen clock', exact: true });
+  expect(await clock.evaluate(el => { const range = document.createRange(); range.selectNodeContents(el); return range.getClientRects().length; })).toBe(1);
+  for (const width of [393, 360]) {
+    await page.setViewportSize({ width, height: 851 });
+    for (const row of await page.locator('.ticket-row').all()) {
+      const date = (await row.locator('time').boundingBox())!;
+      const done = (await row.locator('.ticket-done').boundingBox())!;
+      expect(Math.abs(date.y + date.height / 2 - done.y - done.height / 2)).toBeLessThan(5);
+      expect(done.x).toBeGreaterThan(date.x + date.width);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  await page.screenshot({ path: 'test-results/android-date-done.png', fullPage: true });
+  await clock.focus(); await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog')).toBeVisible();
+});
