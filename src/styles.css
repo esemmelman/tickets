@@ -94,3 +94,14 @@
 .ticket-row.due-today{background:#ef9a9a}
 .ticket-row.due-today:hover{background:#e98b8b}
 .ticket-row.due-today .number,.ticket-row.due-today .ticket-list-date{color:#573232}
+
+.ticket-done{display:inline;padding:0;background:transparent;color:var(--green);font:inherit;line-height:inherit}
+.ticket-done:hover:not(:disabled){text-decoration:underline}
+.ticket-date-action{display:flex;align-items:center;gap:.25em;min-width:0}
+.ticket-date-action .inline-date{flex:1;min-width:0}
+.android .ticket-title-text{min-width:0;font-size:17px;line-height:1.4}
+.android-ticket-row:not(.expanded)>.ticket-date-action{display:none}
+.android-ticket-row.expanded>.ticket-date-action input{min-height:44px;font-size:16px;padding:4px 2px}
+@media(max-width:800px){.ticket-date-action{grid-column:3}}
+@media(max-width:600px){.ticket-date-action{grid-column:1/-1}}
+.android-ticket-row.expanded>.ticket-date-action{grid-column:auto}

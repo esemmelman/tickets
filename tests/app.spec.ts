@@ -377,3 +377,23 @@ test('Android search is revealed by holding the composer and Archive is selected
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/android-compact.png', fullPage: true });
 });
+
+for (const android of [false, true]) {
+  test(`D marks a ticket Done without opening details (${android ? 'Android' : 'desktop'})`, async ({ page }) => {
+    if (android) {
+      await page.setViewportSize({ width: 393, height: 851 });
+      await page.addInitScript(() => Object.defineProperty(navigator, 'userAgent', { value: 'Android Chrome' }));
+    }
+    const state = await mockApp(page);
+    await page.goto('./');
+    const input = page.getByRole('textbox', { name: 'Ticket title', exact: true });
+    await input.fill('Complete this task');
+    await input.press('Enter');
+    await page.getByRole('button', { name: 'Mark ticket 1001 Done', exact: true }).click();
+    await expect(page.locator('.ticket-row')).toHaveCount(0);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(state.getTickets()[0].status).toBe('Done');
+    await page.getByLabel('Filter status').selectOption('Done');
+    await expect(page.getByRole('button', { name: 'Mark ticket 1001 Done', exact: true })).toBeDisabled();
+  });
+}
