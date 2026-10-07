@@ -116,3 +116,8 @@
 .date-field .no-date:hover:not(:disabled){text-decoration:underline}
 .ticket-date-action .date-field{display:flex;align-items:center;gap:5px}.ticket-date-action .no-date{flex-shrink:0}.ticket-date-action .inline-date{width:0}
 @media(min-width:801px){.table-head,.ticket-row{grid-template-columns:minmax(0,1fr) 140px 112px 210px}}
+
+.android .composer-input-bar{grid-template-columns:minmax(0,1fr) auto}
+.android .composer-input-bar fieldset{grid-column:1/-1;width:100%;padding:8px 0}
+.android .add-ticket-toggle{min-width:44px;min-height:44px;color:var(--green)}
+.manual-entry-actions{display:flex;justify-content:space-between;align-items:center;margin-top:8px}

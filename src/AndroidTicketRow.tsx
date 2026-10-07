@@ -9,7 +9,7 @@ export function AndroidTicketRow({ children, busy, open, dueToday }: { children:
   useEffect(() => cancel, []);
   return <div className={`ticket-row android-ticket-row ${dueToday ? 'due-today' : ''} ${expanded ? 'expanded' : ''}`} aria-busy={busy}
     onPointerDown={e => {
-      if (!e.isPrimary || e.button !== 0 || (e.target as HTMLElement).closest('select, input, .close-row-fields, .ticket-done')) return;
+      if (!e.isPrimary || e.button !== 0 || (e.target as HTMLElement).closest('select, input, .close-row-fields, .ticket-done, .no-date')) return;
       cancel(); suppressClick.current = false; origin.current = { x: e.clientX, y: e.clientY };
       timer.current = setTimeout(() => { suppressClick.current = true; setExpanded(true); }, 500);
     }}
@@ -17,7 +17,7 @@ export function AndroidTicketRow({ children, busy, open, dueToday }: { children:
     onPointerUp={cancel} onPointerCancel={() => { cancel(); suppressClick.current = true; }} onPointerLeave={cancel}
     onContextMenu={e => e.preventDefault()}
     onClickCapture={e => {
-      if ((e.target as HTMLElement).closest('select, input, .close-row-fields, .ticket-done')) return;
+      if ((e.target as HTMLElement).closest('select, input, .close-row-fields, .ticket-done, .no-date')) return;
       e.stopPropagation();
       if (suppressClick.current && e.detail !== 0) { e.preventDefault(); suppressClick.current = false; return; }
       open();

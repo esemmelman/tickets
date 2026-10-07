@@ -451,3 +451,23 @@ test('No date persists when creating and editing tickets', async ({ page }) => {
   await page.reload();
   await expect(page.getByLabel('Due date for ticket 1001', { exact: true })).toHaveValue('');
 });
+
+
+test('Android plus opens a typed ticket form without starting audio', async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 851 });
+  await page.addInitScript(() => Object.defineProperty(navigator, 'userAgent', { value: 'Android Chrome' }));
+  const state = await mockApp(page); await mockVoice(page); await page.goto('./');
+  const composer = page.getByRole('region', { name: 'Add ticket', exact: true });
+  await composer.getByRole('button', { name: 'Add ticket', exact: true }).click();
+  await expect(composer.getByLabel('Due date', { exact: true })).toBeVisible();
+  await expect(composer.getByRole('button', { name: 'Save ticket', exact: true })).toBeDisabled();
+  await composer.getByLabel('Ticket title', { exact: true }).click();
+  expect(await page.evaluate(() => !!(window as any).recognition)).toBe(false);
+  await composer.getByLabel('Ticket title', { exact: true }).fill('Typed Android ticket');
+  await composer.getByRole('button', { name: 'No date', exact: true }).click();
+  await composer.getByRole('button', { name: 'Save ticket', exact: true }).click();
+  await expect(page.getByRole('button', { name: '#1001 Typed Android ticket', exact: true })).toBeVisible();
+  expect(state.getTickets()[0].due_date).toBeNull();
+  await expect(composer.getByRole('button', { name: 'Save ticket', exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});

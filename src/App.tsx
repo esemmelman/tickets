@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { Archive, ArrowDown, Check, Circle, Clock3, FileText, LogOut, RefreshCw, Search, Ticket as TicketIcon, X } from 'lucide-react';
+import { Archive, ArrowDown, Check, Circle, Clock3, FileText, LogOut, Plus, RefreshCw, Search, Ticket as TicketIcon, X } from 'lucide-react';
 import { blankDraft, displayDate, errorMessage, localDate, passwordExpiry, supabase } from './lib';
 import { createTicket, loadTickets, updateTicket } from './api';
 import { priorities, statuses } from './types';
@@ -76,6 +76,7 @@ function Workspace({ email }: { email: string }) {
   const [draft, setDraft] = useState<Draft>(blankDraft);
   const [saving, setSaving] = useState(false);
   const [listening, setListening] = useState(false);
+  const [manualEntry, setManualEntry] = useState(false);
   const [updating, setUpdating] = useState<Set<number>>(new Set());
   const updateLocks = useRef(new Set<number>());
   const typedDraft = useRef(false);
@@ -92,7 +93,7 @@ function Workspace({ email }: { email: string }) {
     if (savingRef.current || !value.title.trim()) return;
 
     savingRef.current = true; setSaving(true); setError('');
-    try { const ticket = await createTicket(value, requestId.current); setTickets(items => [ticket, ...items.filter(t => t.id !== ticket.id)]); setDraft(blankDraft()); typedDraft.current = false; requestId.current = crypto.randomUUID(); setNotice(`Ticket #${ticket.id} saved`); }
+    try { const ticket = await createTicket(value, requestId.current); setTickets(items => [ticket, ...items.filter(t => t.id !== ticket.id)]); setDraft(blankDraft()); setManualEntry(false); typedDraft.current = false; requestId.current = crypto.randomUUID(); setNotice(`Ticket #${ticket.id} saved`); }
     catch (e) { setError(errorMessage(e)); setDraft(value); }
     finally { savingRef.current = false; setSaving(false); }
   };
@@ -147,15 +148,17 @@ function Workspace({ email }: { email: string }) {
   <main className="workspace"><div className="summary"><span><strong>{active.length}</strong> active</span><span><span className="dot amber"/><strong>{active.filter(t => t.status === 'In progress').length}</strong> in progress</span><span><span className="dot red"/><strong>{active.filter(overdue).length}</strong> overdue</span><span><span className="dot green"/><strong>{tickets.filter(t => !t.archived && t.status === 'Done').length}</strong> done</span></div>
     <section className={`composer compact-composer ${listening ? 'is-listening' : ''}`} aria-label="Add ticket">
       <form onSubmit={e => { e.preventDefault(); submit(); }}>
-        <div className="composer-input-bar"><input ref={titleInput} aria-label="Ticket title" aria-description={android ? "Tap to start or stop voice entry. Press Enter to save. Long press to show search." : "Tap to start or stop voice entry. Press Enter to save."} aria-busy={saving} maxLength={500} value={draft.title} disabled={saving} onPointerDown={e => {
+        <div className="composer-input-bar"><input ref={titleInput} aria-label="Ticket title" aria-description={manualEntry ? "Type a ticket title, then press Save ticket or Enter." : android ? "Tap to start or stop voice entry. Press Enter to save. Long press to show search." : "Tap to start or stop voice entry. Press Enter to save."} aria-busy={saving} maxLength={500} value={draft.title} disabled={saving} onPointerDown={e => {
           if (!android || !e.isPrimary || e.button !== 0) return;
           cancelInputHold(); suppressInputClick.current = false; inputOrigin.current = { x: e.clientX, y: e.clientY };
           inputHold.current = setTimeout(() => { suppressInputClick.current = true; showSearch(); }, 500);
         }} onPointerMove={e => { if (Math.hypot(e.clientX - inputOrigin.current.x, e.clientY - inputOrigin.current.y) > 10) cancelInputHold(); }}
         onPointerUp={cancelInputHold} onPointerCancel={cancelInputHold} onPointerLeave={cancelInputHold}
         onContextMenu={e => { if (android) e.preventDefault(); }}
-        onClick={() => { if (suppressInputClick.current) { suppressInputClick.current = false; return; } toggleVoice(); }} onChange={e => typeTitle(e.target.value)} onKeyDown={e => { if (android && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) { e.preventDefault(); showSearch(); return; } if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
-        {!android && <fieldset disabled={saving}><Fields draft={draft} change={next => { voice.current?.cancel(); setListening(false); draftRef.current = next; setDraft(next); }}/></fieldset>}</div>
+        onClick={() => { if (suppressInputClick.current) { suppressInputClick.current = false; return; } if (!manualEntry) toggleVoice(); }} onChange={e => typeTitle(e.target.value)} onKeyDown={e => { if (android && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) { e.preventDefault(); showSearch(); return; } if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
+        {android && <button type="button" className="icon-button add-ticket-toggle" aria-label="Add ticket" aria-expanded={manualEntry} disabled={saving} onClick={() => { voice.current?.cancel(); setListening(false); setManualEntry(true); typedDraft.current = true; titleInput.current?.focus(); }}><Plus size={22}/></button>}
+        {(!android || manualEntry) && <fieldset disabled={saving}><Fields draft={draft} change={next => { voice.current?.cancel(); setListening(false); draftRef.current = next; setDraft(next); }}/></fieldset>}</div>
+        {android && manualEntry && <div className="manual-entry-actions"><button type="button" className="text-button" disabled={saving} onClick={() => setManualEntry(false)}>Hide form</button><button type="submit" className="primary" disabled={saving || !draft.title.trim()}>Save ticket</button></div>}
         <span className="voice-status" role="status">{listening ? 'Listening. Tap again to stop.' : saving ? 'Saving ticket.' : ''}</span>
       </form>
     </section>
