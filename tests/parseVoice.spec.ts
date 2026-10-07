@@ -18,3 +18,13 @@ test('voice uses Aubree for the recognized name Aubrey', () => {
   expect(parseVoice("call aubrey about Aubrey's appointment", today).title).toBe("Call Aubree about Aubree's appointment");
   expect(parseVoice('Call Aubreys office', today).title).toBe('Call Aubreys office');
 });
+
+
+test('trailing no date clears the due date and is removed from the title', () => {
+  expect(parseVoice('Call plumber no date', today)).toMatchObject({ title: 'Call plumber', due_date: null });
+  expect(parseVoice('Call plumber high priority NO DATE.', today)).toMatchObject({ title: 'Call plumber', due_date: null, priority: 'High' });
+  expect(parseVoice('Call plumber due tomorrow no date!', today)).toMatchObject({ title: 'Call plumber', due_date: null });
+  expect(parseVoice('Call plumber no date', today, { title: '', description: '', due_date: '2026-10-15', priority: 'Low', status: 'Waiting' })).toMatchObject({ title: 'Call plumber', due_date: null, priority: 'Low', status: 'Waiting' });
+  expect(parseVoice('No date', today)).toMatchObject({ title: '', due_date: null });
+  expect(parseVoice('Check why there is no date on the form', today)).toMatchObject({ title: 'Check why there is no date on the form', due_date: '2026-09-26' });
+});

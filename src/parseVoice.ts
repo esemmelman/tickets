@@ -4,6 +4,8 @@ import type { Draft, Priority, Status } from './types';
 export function parseVoice(input: string, reference = new Date(), defaults?: Draft): Draft {
   const date = `${reference.getFullYear()}-${String(reference.getMonth() + 1).padStart(2, '0')}-${String(reference.getDate()).padStart(2, '0')}`;
   let title = input.trim().replace(/^(?:add|create)\s+(?:a\s+)?(?:new\s+)?ticket\s*(?:called|titled|for)?\s*/i, '').replace(/^title\s+/i, '');
+  const noDate = /\bno\s+date[\s,.!?;:]*$/i.test(title);
+  if (noDate) title = title.replace(/\bno\s+date[\s,.!?;:]*$/i, '');
   let priority: Priority | null = defaults ? defaults.priority : 'Medium';
   let status: Status | null = defaults ? defaults.status : 'Open';
   title = title.replace(/\b(?:(?:set\s+)?priority\s*(?:to|is)?\s*(low|medium|normal|high|urgent|critical)|(low|medium|normal|high|urgent|critical)\s+priority)\b/gi, (_, a, b) => {
@@ -24,6 +26,7 @@ export function parseVoice(input: string, reference = new Date(), defaults?: Dra
     const before = title.slice(0, match.index).replace(/\b(?:due(?:\s+date)?(?:\s+(?:is|on|by))?|on|by|for)\s*$/i, '');
     title = before + title.slice(match.index + match.text.length);
   }
+  if (noDate) due_date = null;
   title = title.replace(/\s+/g, ' ').replace(/^[\s,.;:-]+|[\s,.;:-]+$/g, '').trim();
   title = title.replace(/\bAubrey\b/gi, 'Aubree');
   title = title.replace(/\p{L}/u, letter => letter.toLocaleUpperCase());

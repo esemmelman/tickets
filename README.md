@@ -1,4 +1,4 @@
-# Tickets · v1.0.18
+# Tickets · v1.0.19
 
 Personal tickets at https://esemmelman.github.io/tickets/ with the existing **bnaimitzvah** Supabase backend. Sign in with your existing Supabase Auth email and password (not a database or dashboard password).
 
@@ -11,6 +11,7 @@ Personal tickets at https://esemmelman.github.io/tickets/ with the existing **bn
 - Multiple editable comments and private file attachments (25 MB each).
 - On Android, tap the plus sign beside the title input to open a typed ticket form with date, priority, status, and a Save ticket button. The form does not start audio when tapped. A compact title input sits at the top of the workspace without summary counts. Archive is available in the status dropdown instead of a separate tabs row. Long press the title input to reveal search; Hide search clears and collapses it. Ticket rows have no leading status icon and titles align in a consistent column after their IDs, followed by the due date (or No date). Tap a saved ticket to open its full details; long press it to reveal status, priority, and due date controls that save directly. Use Hide fields to collapse them. New tickets keep the usual defaults. On desktop, metadata remains editable in the input bar and ticket rows.
 - Tap the blank input to dictate in Android Chrome, allowing microphone access. Three seconds of silence stops recording silently and saves only when a title was captured. Tap again to stop and keep the draft without saving. Type in the same input to use the keyboard; typing cancels recording and auto-save for that draft; press Enter to save. Enter saves immediately, including while recording. On desktop, clicking a saved ticket title opens its details. Status and priority dropdowns and a date picker save changes directly in the list.
+- End voice input with “no date” to save without a due date. The phrase is removed from the title and overrides any spoken or default date.
 - Voice titles automatically capitalize their first letter and correct the recognized name Aubrey to Aubree.
 - Example: “Call the plumber due tomorrow high priority status in progress.” Date extraction uses chrono-node; metadata uses explicit priority/status phrases to avoid removing ordinary title words. This is deterministic natural-language parsing, not a generative AI service.
 - Voice uses browser speech recognition, with Web Audio silence detection on desktop and recognition event timers on Android. Android lets the recognition service own the microphone; microphone errors are shown above the list. Browser recognition may send audio to its provider and needs an internet connection. Test the microphone on your physical Android device; automated tests simulate browser audio events.

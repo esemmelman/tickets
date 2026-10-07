@@ -471,3 +471,16 @@ test('Android plus opens a typed ticket form without starting audio', async ({ p
   await expect(composer.getByRole('button', { name: 'Save ticket', exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+
+test('voice auto-save honors trailing no date', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, 'userAgent', { value: 'Android Chrome' }));
+  const state = await mockApp(page); await mockVoice(page); await page.goto('./');
+  await page.getByRole('textbox', { name: 'Ticket title', exact: true }).click();
+  await page.waitForFunction(() => !!(window as any).recognition);
+  await page.evaluate(() => (window as any).recognition.onresult({ results: [[{ transcript: 'Call plumber no date.' }]] }));
+  await expect(page.getByRole('button', { name: '#1001 Call plumber', exact: true })).toBeVisible({ timeout: 6000 });
+  expect(state.getTickets()).toHaveLength(1);
+  expect(state.getTickets()[0].due_date).toBeNull();
+  await expect(page.locator('.ticket-list-date')).toHaveText(' · No date');
+});
