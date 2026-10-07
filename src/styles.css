@@ -109,3 +109,10 @@
 .android .ticket-date-done{white-space:nowrap}
 .android .ticket-title .number{align-self:start;line-height:23.8px}
 .android .ticket-title-button:focus-visible{outline:3px solid #73b8a7;outline-offset:3px}
+
+.date-field{min-width:0;flex:1}
+.date-field .no-date{display:block;background:transparent;color:var(--green);font-size:11px;padding:3px 0;min-height:24px}
+.date-field .no-date[aria-pressed="true"]{font-weight:650}
+.date-field .no-date:hover:not(:disabled){text-decoration:underline}
+.ticket-date-action .date-field{display:flex;align-items:center;gap:5px}.ticket-date-action .no-date{flex-shrink:0}.ticket-date-action .inline-date{width:0}
+@media(min-width:801px){.table-head,.ticket-row{grid-template-columns:minmax(0,1fr) 140px 112px 210px}}

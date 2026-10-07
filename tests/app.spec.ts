@@ -424,3 +424,30 @@ test('Android titles flow across lines and keep the date with D', async ({ page 
   await clock.focus(); await page.keyboard.press('Enter');
   await expect(page.getByRole('dialog')).toBeVisible();
 });
+
+
+test('No date persists when creating and editing tickets', async ({ page }) => {
+  const state = await mockApp(page); await page.goto('./');
+  const composer = page.locator('.composer');
+  await composer.getByRole('button', { name: 'No date', exact: true }).click();
+  await composer.getByRole('textbox', { name: 'Ticket title', exact: true }).fill('Undated task');
+  await composer.getByRole('textbox', { name: 'Ticket title', exact: true }).press('Enter');
+  const row = page.locator('.ticket-row').first();
+  const date = row.getByLabel('Due date for ticket 1001', { exact: true });
+  await expect(date).toHaveValue('');
+  expect(state.getTickets()[0].due_date).toBeNull();
+  await date.fill('2027-01-10');
+  await expect.poll(() => state.getTickets()[0].due_date).toBe('2027-01-10');
+  await row.getByRole('button', { name: 'No date for ticket 1001', exact: true }).click();
+  await expect.poll(() => state.getTickets()[0].due_date).toBeNull();
+  await date.fill('2027-01-11');
+  await expect.poll(() => state.getTickets()[0].due_date).toBe('2027-01-11');
+  await page.getByRole('button', { name: '#1001 Undated task', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'No date', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Save changes' }).click();
+  await expect.poll(() => state.getTickets()[0].due_date).toBeNull();
+  await dialog.getByRole('button', { name: 'Close ticket' }).click();
+  await page.reload();
+  await expect(page.getByLabel('Due date for ticket 1001', { exact: true })).toHaveValue('');
+});
