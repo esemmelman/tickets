@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { Archive, ArrowDown, Check, Circle, Clock3, LogOut, Plus, RefreshCw, Search, Ticket as TicketIcon, X } from 'lucide-react';
+import { Archive, ArrowDown, Check, Circle, Clock3, LogOut, Plus, RefreshCw, Ticket as TicketIcon, X } from 'lucide-react';
 import { blankDraft, displayDate, errorMessage, localDate, passwordExpiry, supabase } from './lib';
 import { createTicket, deleteTicket, loadTickets, updateTicket } from './api';
 import { priorities, statuses } from './types';
@@ -12,6 +12,10 @@ import { AndroidTicketRow } from './AndroidTicketRow';
 
 const android = /Android/i.test(navigator.userAgent);
 const TicketTitle = android ? 'span' : 'button';
+
+function findArgument(text: string): string | null {
+  return text.match(/^\s*find(?:\s+|$)(.*)$/i)?.[1].trim() ?? null;
+}
 
 function Fields({ draft, change }: { draft: Draft; change: (draft: Draft) => void }) {
   return <div className="fields"><div className="date-field"><label>Due date<input type="date" value={draft.due_date || ''} onChange={e => change({ ...draft, due_date: e.target.value || null })}/></label><button type="button" className="no-date" aria-pressed={!draft.due_date} onClick={() => change({ ...draft, due_date: null })}>No date</button></div><label>Priority<select value={draft.priority || ''} onChange={e => change({ ...draft, priority: e.target.value as Draft['priority'] || null })}><option value="">None</option>{priorities.map(p => <option key={p}>{p}</option>)}</select></label><label>Status<select value={draft.status || ''} onChange={e => change({ ...draft, status: e.target.value as Draft['status'] || null })}><option value="">None</option>{statuses.map(s => <option key={s}>{s}</option>)}</select></label></div>;
@@ -57,23 +61,12 @@ function Workspace({ email }: { email: string }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [view, setView] = useState<'active' | 'archive'>('active');
-  const [query, setQuery] = useState('');
-  const [searchVisible, setSearchVisible] = useState(false);
-  const searchInput = useRef<HTMLInputElement>(null);
-  const inputHold = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const inputOrigin = useRef({ x: 0, y: 0 });
-  const suppressInputClick = useRef(false);
-  const cancelInputHold = () => clearTimeout(inputHold.current);
-  useEffect(() => cancelInputHold, []);
-  useEffect(() => { if (searchVisible) searchInput.current?.focus(); }, [searchVisible]);
-  const showSearch = () => {
-    voice.current?.cancel(); setListening(false); setSearchVisible(true);
-  };
   const [status, setStatus] = useState('');
   const [priority, setPriority] = useState('');
   const [sort, setSort] = useState('due');
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [draft, setDraft] = useState<Draft>(blankDraft);
+  const query = findArgument(draft.title) ?? '';
   const [saving, setSaving] = useState(false);
   const [listening, setListening] = useState(false);
   const [manualEntry, setManualEntry] = useState(false);
@@ -90,7 +83,7 @@ function Workspace({ email }: { email: string }) {
   useEffect(() => { void refresh(); return () => { voice.current?.cancel(); }; }, [refresh]);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 6500); return () => clearTimeout(timer); }, [notice]);
   const save = async (value = draft) => {
-    if (savingRef.current || !value.title.trim()) return;
+    if (savingRef.current || !value.title.trim() || findArgument(value.title) !== null) return;
 
     savingRef.current = true; setSaving(true); setError('');
     try { const ticket = await createTicket(value, requestId.current); setTickets(items => [ticket, ...items.filter(t => t.id !== ticket.id)]); setDraft(blankDraft()); setManualEntry(false); typedDraft.current = false; requestId.current = crypto.randomUUID(); setNotice(`Ticket #${ticket.id} saved`); }
@@ -104,13 +97,19 @@ function Workspace({ email }: { email: string }) {
     if (!recognitionConstructor()) { setError('Voice entry is unavailable in this browser. Open Tickets in Chrome or type your ticket.'); return; }
     typedDraft.current = false;
     setListening(true); setError('');
-    const starting = draft;
+    const starting = { ...draft, title: findArgument(draft.title) !== null ? '' : draft.title };
+    const parseEntry = (text: string) => {
+      const title = [starting.title, text].filter(Boolean).join(' ');
+      const command = title.replace(/[.!?]+$/, '');
+      if (findArgument(command) !== null) return { ...starting, title: command };
+      return { ...parseVoice(title, new Date(), starting), description: starting.description };
+    };
     voice.current = new VoiceCapture({
-      transcript: text => { setDraft({ ...parseVoice([starting.title, text].filter(Boolean).join(' '), new Date(), starting), description: starting.description }); },
+      transcript: text => { const next = parseEntry(text); draftRef.current = next; setDraft(next); },
       finish: (text, autoSave) => {
         setListening(false);
-        const parsed = text.trim() ? { ...parseVoice([starting.title, text].filter(Boolean).join(' '), new Date(), starting), description: starting.description } : draftRef.current;
-        setDraft(parsed);
+        const parsed = text.trim() ? parseEntry(text) : draftRef.current;
+        draftRef.current = parsed; setDraft(parsed);
         if (autoSave && !typedDraft.current && parsed.title.trim()) void save(parsed);
       },
       error: message => { setListening(false); setError(message); },
@@ -156,22 +155,16 @@ function Workspace({ email }: { email: string }) {
   return <div className={`app ${android ? 'android' : ''}`}><main className="workspace"><header className="topbar"><div className="brand"><span className="brand-icon"><TicketIcon size={23}/></span><h1>Tickets</h1><span className="version">v{__APP_VERSION__}</span></div><div className="account"><span>{email}</span><button className="icon-button" title="Sign out" aria-label="Sign out" onClick={async () => { const { error } = await supabase.auth.signOut({ scope: 'local' }); if (error) setError(error.message); }}><LogOut size={18}/></button></div></header>
     <section className={`composer compact-composer ${listening ? 'is-listening' : ''}`} aria-label="Add ticket">
       <form onSubmit={e => { e.preventDefault(); submit(); }}>
-        <div className="composer-input-bar"><input ref={titleInput} aria-label="Ticket title" aria-description={manualEntry ? "Type a ticket title, then press Save ticket or Enter." : android ? "Tap to start or stop voice entry. Press Enter to save. Long press to show search." : "Tap to start or stop voice entry. Press Enter to save."} aria-busy={saving} maxLength={500} value={draft.title} disabled={saving} onPointerDown={e => {
-          if (!android || !e.isPrimary || e.button !== 0) return;
-          cancelInputHold(); suppressInputClick.current = false; inputOrigin.current = { x: e.clientX, y: e.clientY };
-          inputHold.current = setTimeout(() => { suppressInputClick.current = true; showSearch(); }, 500);
-        }} onPointerMove={e => { if (Math.hypot(e.clientX - inputOrigin.current.x, e.clientY - inputOrigin.current.y) > 10) cancelInputHold(); }}
-        onPointerUp={cancelInputHold} onPointerCancel={cancelInputHold} onPointerLeave={cancelInputHold}
-        onContextMenu={e => { if (android) e.preventDefault(); }}
-        onClick={() => { if (suppressInputClick.current) { suppressInputClick.current = false; return; } if (!manualEntry) toggleVoice(); }} onChange={e => typeTitle(e.target.value)} onKeyDown={e => { if (android && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) { e.preventDefault(); showSearch(); return; } if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
+        <div className="composer-input-bar"><input ref={titleInput} aria-label="Ticket title" aria-description="Type or say a ticket. Start with Find to search. Press Enter to submit or Escape to clear." placeholder="New ticket or Find…" aria-busy={saving} maxLength={500} value={draft.title} disabled={saving}
+        onClick={() => { if (!manualEntry) toggleVoice(); }} onChange={e => typeTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); typeTitle(''); } if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }} />
         {android && <button type="button" className="icon-button add-ticket-toggle" aria-label="Add ticket" aria-expanded={manualEntry} disabled={saving} onClick={() => { voice.current?.cancel(); setListening(false); setManualEntry(true); typedDraft.current = true; titleInput.current?.focus(); }}><Plus size={22}/></button>}
         {(!android || manualEntry) && <fieldset disabled={saving}><Fields draft={draft} change={next => { voice.current?.cancel(); setListening(false); draftRef.current = next; setDraft(next); }}/></fieldset>}{!android && <button type="button" className="archive-toggle secondary" aria-pressed={view === 'archive'} onClick={() => { setView(view === 'archive' ? 'active' : 'archive'); setStatus(''); }}><Archive size={16}/>Archive</button>}</div>
-        {android && manualEntry && <div className="manual-entry-actions"><button type="button" className="text-button" disabled={saving} onClick={() => setManualEntry(false)}>Hide form</button><button type="submit" className="primary" disabled={saving || !draft.title.trim()}>Save ticket</button></div>}
+        {android && manualEntry && <div className="manual-entry-actions"><button type="button" className="text-button" disabled={saving} onClick={() => setManualEntry(false)}>Hide form</button><button type="submit" className="primary" disabled={saving || !draft.title.trim() || findArgument(draft.title) !== null}>Save ticket</button></div>}
         <span className="voice-status" role="status">{listening ? 'Listening. Tap again to stop.' : saving ? 'Saving ticket.' : ''}</span>
       </form>
     </section>
     {error && <div className="error-banner" role="alert"><span>{error}</span><button className="icon-button" aria-label="Dismiss error" onClick={() => setError('')}><X size={16}/></button></div>}
-    <section className="ticket-panel" aria-label="Tickets"><div className="filterbar">{!android && <button className="icon-button" aria-label="Refresh tickets" disabled={loading} onClick={() => void refresh()}><RefreshCw size={17} className={loading ? 'spin' : ''}/></button>}{(!android || searchVisible) && <label className="search"><Search size={18}/><input ref={searchInput} aria-label="Find tickets" placeholder="Find by title, number, or description…" value={query} onChange={e => setQuery(e.target.value)}/>{query && <button className="icon-button" aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></button>}{android && <button className="icon-button" aria-label="Hide search" onClick={() => { setQuery(''); setSearchVisible(false); }}><X size={15}/></button>}</label>}<select aria-label="Filter status" value={android && view === 'archive' ? 'archive' : status} onChange={e => { if (android) { setView(e.target.value === 'archive' ? 'archive' : 'active'); setStatus(e.target.value === 'archive' ? '' : e.target.value); } else setStatus(e.target.value); }}><option value="">{android || view === 'active' ? 'Active statuses' : 'All statuses'}</option>{(android || view === 'active') && <option value="all">All statuses</option>}{android && <option value="archive">Archive</option>}{statuses.map(s => <option key={s}>{s}</option>)}</select><select aria-label="Filter priority" value={priority} onChange={e => setPriority(e.target.value)}><option value="">All priorities</option>{priorities.map(p => <option key={p}>{p}</option>)}</select><label className="sort"><ArrowDown size={16}/><select aria-label="Sort tickets" value={sort} onChange={e => setSort(e.target.value)}><option value="newest">Newest</option><option value="due">Date, title ↑</option><option value="priority">Priority</option></select></label></div>
+    <section className="ticket-panel" aria-label="Tickets"><div className="filterbar">{!android && <button className="icon-button" aria-label="Refresh tickets" disabled={loading} onClick={() => void refresh()}><RefreshCw size={17} className={loading ? 'spin' : ''}/></button>}<select aria-label="Filter status" value={android && view === 'archive' ? 'archive' : status} onChange={e => { if (android) { setView(e.target.value === 'archive' ? 'archive' : 'active'); setStatus(e.target.value === 'archive' ? '' : e.target.value); } else setStatus(e.target.value); }}><option value="">{android || view === 'active' ? 'Active statuses' : 'All statuses'}</option>{(android || view === 'active') && <option value="all">All statuses</option>}{android && <option value="archive">Archive</option>}{statuses.map(s => <option key={s}>{s}</option>)}</select><select aria-label="Filter priority" value={priority} onChange={e => setPriority(e.target.value)}><option value="">All priorities</option>{priorities.map(p => <option key={p}>{p}</option>)}</select><label className="sort"><ArrowDown size={16}/><select aria-label="Sort tickets" value={sort} onChange={e => setSort(e.target.value)}><option value="newest">Newest</option><option value="due">Date, title ↑</option><option value="priority">Priority</option></select></label></div>
     <div className="table-head"><span>Ticket</span><span>Status</span><span>Priority</span><span>Due date</span></div><div className="ticket-list">{loading && !tickets.length ? <p className="empty">Loading tickets…</p> : filtered.length ? filtered.map(t => { const doneButton = <button type="button" className="ticket-done" aria-label={`Mark ticket ${t.id} Done`} disabled={updating.has(t.id) || t.status === 'Done'} onClick={() => void editInline(t, { status: 'Done' })}>d</button>; const content = <>
       <div className="ticket-title"><span className={`status-icon ${t.status === 'Done' ? 'done' : ''}`}>{t.status === 'Done' ? <Check size={17}/> : <Circle size={17}/>}</span><div><span className="number" style={android ? { width: `${idDigits + 3}ch` } : undefined}>#{t.id}{android ? '  ' : ''}</span>{android ? null : " "}<span className="ticket-title-text"><TicketTitle role="button" tabIndex={0} className="ticket-title-button" aria-description={android ? "Tap to open ticket. Long press to edit status, priority, and due date." : undefined} aria-label={`#${t.id} ${t.title}`} onClick={() => setSelected(t)} onKeyDown={e => { if (android && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setSelected(t); } }}>{t.title}</TicketTitle>{android && <>{' '}<span className="ticket-date-done"><span className={`ticket-list-date ${overdue(t) ? 'overdue' : ''}`}> · {t.due_date ? <time dateTime={t.due_date}>{displayDate(t.due_date)}</time> : 'No date'}</span>{' '}{doneButton}</span></>}</span>{t.description && <p>{t.description}</p>}</div></div>
       <select className={`inline-status status-${(t.status || '').toLowerCase().replaceAll(' ', '-')}`} aria-label={`Status for ticket ${t.id}`} value={t.status || ''} disabled={updating.has(t.id)} onChange={e => { if (e.target.value === 'delete') void removeTicket(t); else void editInline(t, { status: e.target.value as Draft['status'] || null }); }}><option value="">None</option>{statuses.map(s => <option key={s}>{s}</option>)}{!android && <option value="delete">Delete</option>}</select>

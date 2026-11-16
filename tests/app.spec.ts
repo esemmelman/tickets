@@ -48,7 +48,7 @@ test('CRUD, comments, find, archive, restore, delete', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Archive', exact: true }).click();
   await dialog.getByRole('button', { name: 'Close ticket' }).click();
   await page.getByRole('button', { name: 'Archive', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Find tickets' }).fill('bathroom');
+  await page.getByLabel('Ticket title', { exact: true }).fill('Find bathroom');
   await page.getByRole('button', { name: /#1001 Fix bathroom faucet/ }).click();
   await dialog.getByRole('button', { name: 'Restore', exact: true }).click();
   await dialog.getByRole('button', { name: 'Delete ticket', exact: true }).click();
@@ -139,7 +139,6 @@ test('desktop and mobile display populated ticket details without overflow', asy
 test('typed content waits for Enter and rejects whitespace', async ({ page }) => {
   const state = await mockApp(page); await page.goto('./');
   const input = page.getByRole('textbox', { name: 'Ticket title', exact: true });
-  await expect(input).not.toHaveAttribute('placeholder');
   await input.fill('   '); await input.press('Enter');
   await page.waitForTimeout(3200);
   expect(state.getTickets()).toHaveLength(0);
@@ -338,7 +337,7 @@ test('default view excludes Done and Cancelled but explicit status filters can s
  });
 
 
-test('Android search is revealed by holding the composer and Archive is selected through status', async ({ page }) => {
+test('Android searches through ticket entry and Archive is selected through status', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.addInitScript(() => Object.defineProperty(navigator, 'userAgent', { value: 'Android Chrome' }));
   await mockApp(page); await mockVoice(page); await page.goto('./');
@@ -356,16 +355,10 @@ test('Android search is revealed by holding the composer and Archive is selected
   await expect(title).toHaveCount(0);
   await page.getByLabel('Filter status').selectOption('archive');
   await expect(title).toBeVisible();
-  const box = (await input.boundingBox())!;
-  await page.mouse.move(box.x + 20, box.y + 15);
-  await page.mouse.down(); await page.waitForTimeout(600); await page.mouse.up();
-  const search = page.getByLabel('Find tickets');
-  await expect(search).toBeVisible();
-  await expect(search).toBeFocused();
-  await expect(page.locator('.composer')).not.toHaveClass(/is-listening/);
-  await search.fill('absent'); await expect(title).toHaveCount(0);
-  await page.getByRole('button', { name: 'Hide search' }).click();
-  await expect(search).toHaveCount(0); await expect(title).toBeVisible();
+  await input.fill('Find absent'); await expect(title).toHaveCount(0);
+  await input.fill('find Archived'); await expect(title).toBeVisible();
+  await input.press('Enter'); await expect(title).toBeVisible();
+  await input.press('Escape'); await expect(input).toHaveValue('');
   await page.getByLabel('Filter status').selectOption('');
   await expect(title).toHaveCount(0);
   await page.getByLabel('Filter status').selectOption('archive');
@@ -509,3 +502,42 @@ test('desktop entry is compact with archive toggle and status deletion', async (
   await expect(page.locator('.ticket-row')).toHaveCount(0);
   expect(state.getTickets()).toHaveLength(0);
 });
+
+
+for (const android of [false, true]) {
+  test(`Find command searches typed and spoken entry without creating tickets (${android ? 'Android' : 'desktop'})`, async ({ page }) => {
+    if (android) {
+      await page.setViewportSize({ width: 393, height: 851 });
+      await page.addInitScript(() => Object.defineProperty(navigator, 'userAgent', { value: 'Android Chrome' }));
+    }
+    const state = await mockApp(page); await mockVoice(page); await page.goto('./');
+    const input = page.getByLabel('Ticket title', { exact: true });
+    for (const title of ['Call plumber tomorrow high priority', 'Try to find keys', 'Finder repair']) {
+      await input.fill(title); await input.press('Enter'); await expect(input).toHaveValue('');
+    }
+    await expect(page.getByLabel('Find tickets')).toHaveCount(0);
+    await input.fill('  FiNd   #1002');
+    await expect(page.locator('.ticket-title-button')).toHaveText(['Try to find keys']);
+    await input.press('Enter');
+    expect(state.getTickets()).toHaveLength(3);
+    await input.fill('Find'); await input.press('Enter');
+    await expect(page.locator('.ticket-row')).toHaveCount(3);
+    expect(state.getTickets()).toHaveLength(3);
+    await input.press('Escape');
+    await input.click();
+    await page.waitForFunction(() => !!(window as any).recognition);
+    await page.evaluate(() => (window as any).recognition.onresult({ results: [[{ transcript: 'Find plumber tomorrow high priority.' }]] }));
+    await expect(page.locator('.composer')).not.toHaveClass(/is-listening/, { timeout: 6000 });
+    await expect(input).toHaveValue('Find plumber tomorrow high priority');
+    await expect(page.locator('.ticket-title-button')).toHaveText(['Call plumber tomorrow high priority']);
+    expect(state.getTickets()).toHaveLength(3);
+    await input.click();
+    await page.evaluate(() => (window as any).recognition.onresult({ results: [[{ transcript: 'Find keys' }]] }));
+    await input.press('Enter');
+    await expect(input).toHaveValue('Find keys');
+    await expect(page.locator('.ticket-title-button')).toHaveText(['Try to find keys']);
+    expect(state.getTickets()).toHaveLength(3);
+    await input.press('Escape');
+    await expect(page.locator('.ticket-row')).toHaveCount(3);
+  });
+}
