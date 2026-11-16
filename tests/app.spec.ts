@@ -291,8 +291,8 @@ test('default view excludes Done and Cancelled but explicit status filters can s
   await expect(page.getByLabel('Status for ticket 1004')).toBeEnabled();
   await page.reload();
   await expect(page.locator('.ticket-title-button')).toHaveText(['No status task', 'Open task']);
-  await expect(page.getByRole('button', { name: 'Active 2', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Archive 0', exact: true })).toBeVisible();
+  await expect(page.locator('.tabs')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Archive', exact: true })).toHaveAttribute('aria-pressed', 'false');
   await page.getByLabel('Filter status').selectOption('Done');
   await expect(page.locator('.ticket-title-button')).toHaveText(['Finished task']);
   await page.getByLabel('Filter status').selectOption('Cancelled');
