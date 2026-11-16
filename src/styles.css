@@ -121,3 +121,22 @@
 .android .composer-input-bar fieldset{grid-column:1/-1;width:100%;padding:8px 0}
 .android .add-ticket-toggle{min-width:44px;min-height:44px;color:var(--green)}
 .manual-entry-actions{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+
+/* Desktop entry and account controls share the first compact row. */
+@media(min-width:801px){
+  .app:not(.android) .workspace{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 10px;padding-top:8px}
+  .app:not(.android) .workspace> *{grid-column:1/-1}
+  .app:not(.android) .topbar{grid-column:2;grid-row:1;height:auto;padding:0;border:0;background:transparent}
+  .app:not(.android) .topbar .brand,.app:not(.android) .account>span{display:none}
+  .app:not(.android) .compact-composer{grid-column:1;grid-row:1;margin:0}
+  .app:not(.android) .composer-input-bar{grid-template-columns:minmax(160px,1fr) minmax(380px,1.35fr) auto;padding:2px 6px;border-radius:7px;gap:8px}
+  .app:not(.android) .compact-composer .composer-input-bar>input{min-height:36px;padding:6px 8px;font-size:14px}
+  .app:not(.android) .compact-composer .fields{align-items:center}
+  .app:not(.android) .compact-composer .fields input,.app:not(.android) .compact-composer .fields select{min-height:26px;padding:2px 4px;font-size:12px}
+  .app:not(.android) .compact-composer .date-field{display:flex;align-items:center;gap:4px}
+  .app:not(.android) .compact-composer .no-date{white-space:nowrap;padding:2px;min-height:24px}
+  .archive-toggle{min-height:32px;padding:5px 8px;font-size:12px}
+  .archive-toggle[aria-pressed="true"]{background:var(--green);color:#fff}
+  .app:not(.android) .filterbar{padding:6px 10px;gap:8px;align-items:center}
+  .app:not(.android) .filterbar input,.app:not(.android) .filterbar>select,.app:not(.android) .sort select{min-height:32px;padding-top:4px;padding-bottom:4px}
+}

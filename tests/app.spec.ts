@@ -47,7 +47,7 @@ test('CRUD, comments, find, archive, restore, delete', async ({ page }) => {
   await expect(dialog.locator('.comment')).toHaveCount(1);
   await dialog.getByRole('button', { name: 'Archive', exact: true }).click();
   await dialog.getByRole('button', { name: 'Close ticket' }).click();
-  await page.getByRole('button', { name: /^Archive 1/ }).click();
+  await page.getByRole('button', { name: 'Archive', exact: true }).click();
   await page.getByRole('textbox', { name: 'Find tickets' }).fill('bathroom');
   await page.getByRole('button', { name: /#1001 Fix bathroom faucet/ }).click();
   await dialog.getByRole('button', { name: 'Restore', exact: true }).click();
@@ -483,4 +483,29 @@ test('voice auto-save honors trailing no date', async ({ page }) => {
   expect(state.getTickets()).toHaveLength(1);
   expect(state.getTickets()[0].due_date).toBeNull();
   await expect(page.locator('.ticket-list-date')).toHaveText(' · No date');
+});
+
+
+test('desktop entry is compact with archive toggle and status deletion', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const state = await mockApp(page); await page.goto('./');
+  const composer = page.getByRole('region', { name: 'Add ticket', exact: true });
+  const input = composer.getByLabel('Ticket title', { exact: true });
+  await input.fill('Delete from status'); await input.press('Enter');
+  const box = (await composer.boundingBox())!;
+  expect(box.y).toBeLessThan(15);
+  expect(box.height).toBeLessThan(60);
+  await expect(page.locator('.summary,.tabs')).toHaveCount(0);
+  const archive = composer.getByRole('button', { name: 'Archive', exact: true });
+  await archive.click(); await expect(archive).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.ticket-row')).toHaveCount(0);
+  await archive.click(); await expect(page.locator('.ticket-row')).toHaveCount(1);
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByLabel('Status for ticket 1001', { exact: true }).selectOption('delete');
+  await expect(page.locator('.ticket-row')).toHaveCount(1);
+  await page.screenshot({ path: 'test-results/desktop-compact.png', fullPage: true });
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByLabel('Status for ticket 1001', { exact: true }).selectOption('delete');
+  await expect(page.locator('.ticket-row')).toHaveCount(0);
+  expect(state.getTickets()).toHaveLength(0);
 });
